@@ -1,0 +1,102 @@
+#:kivy 2.2
+# 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
+
+<MainScreen>:
+    orientation: "vertical"
+    padding: 30
+    spacing: 20
+    canvas.before:
+        Color:
+            rgba: 0.95, 0.95, 1.0, 1   # 浅蓝白背景
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    # ── 伙伴信息区 ──
+    BoxLayout:
+        size_hint_y: 0.25
+        orientation: "vertical"
+        spacing: 8
+
+        Label:
+            font_name: "ChineseHei"
+            text: "💧 " + root.vm.evolution_stage
+            font_size: "28sp"
+            bold: True
+            color: 0.2, 0.5, 0.9, 1
+            size_hint_y: 0.5
+
+        Label:
+            font_name: "ChineseHei"
+            text: "Lv." + str(root.vm.level) + "  已喝 " + str(root.vm.today_cups) + " 杯"
+            font_size: "18sp"
+            color: 0.3, 0.3, 0.3, 1
+            size_hint_y: 0.5
+
+    # ── 水分值进度条 ──
+    BoxLayout:
+        size_hint_y: 0.08
+        orientation: "vertical"
+        spacing: 4
+
+        Label:
+            font_name: "ChineseHei"
+            text: "水分值: " + str(int(root.vm.hydration)) + "%"
+            font_size: "14sp"
+            color: 0.3, 0.5, 0.8, 1
+            halign: "left"
+            size_hint_y: 0.4
+
+        ProgressBar:
+            value: root.vm.hydration_norm * 100
+            max: 100
+            size_hint_y: 0.6
+            background_color: 0.85, 0.85, 0.85, 1
+            color: 0.2, 0.6, 0.9, 1
+
+    # ── 伙伴动画占位区 ──
+    BoxLayout:
+        size_hint_y: 0.25
+        canvas.before:
+            Color:
+                rgba: 0.7, 0.85, 1.0, 0.6
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [20]
+        Label:
+            font_name: "ChineseHei"
+            text: "🐾 伙伴动画区域"
+            font_size: "20sp"
+            color: 0.4, 0.4, 0.4, 1
+
+    # ── Toast 提示 ──
+    Label:
+        id: toast_label
+        font_name: "ChineseHei"
+        text: root.vm.toast_message if root.vm.toast_visible else ""
+        font_size: "18sp"
+        color: 1.0, 0.4, 0.3, 1
+        size_hint_y: 0.06
+        opacity: 1 if root.vm.toast_visible else 0
+
+    # ── 喝水按钮 ──
+    Button:
+        font_name: "ChineseHei"
+        text: root.vm.button_text
+        font_size: "36sp"
+        bold: True
+        size_hint_y: 0.3
+        background_normal: ""
+        background_color: (0.3, 0.6, 1.0, 1) if not root.vm.button_disabled else (0.7, 0.7, 0.7, 1)
+        color: 1, 1, 1, 1
+        disabled: root.vm.button_disabled
+        opacity: 0.6 if root.vm.button_disabled else 1.0
+        on_release: root.vm.drink_water()
+        canvas.before:
+            Color:
+                rgba: self.background_color
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [40]
