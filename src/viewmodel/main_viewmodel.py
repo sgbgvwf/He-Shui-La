@@ -55,7 +55,7 @@ class MainViewModel(EventDispatcher):
 
         if result.get("leveled_up"):
             stage = self.companion.evolution_stage
-            self._show_toast(f"🎉 升级了！进化到 {stage}！")
+            self._show_toast(f"升级了！进化到 {stage}！")
         else:
             self._show_toast("咕噜咕噜～ 真好喝！")
 
