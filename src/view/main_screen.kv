@@ -1,4 +1,5 @@
 #:kivy 2.2
+#:import Companion3DWidget src.view.widgets.companion_3d.Companion3DWidget
 # 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
 
 <MainScreen>:
@@ -54,21 +55,17 @@
             background_color: 0.85, 0.85, 0.85, 1
             color: 0.2, 0.6, 0.9, 1
 
-    # ── 伙伴动画占位区 ──
-    BoxLayout:
+    # ── 3D 伙伴模型 ──
+    Companion3DWidget:
+        id: companion_3d
+        viewmodel: root.vm
         size_hint_y: 0.25
         canvas.before:
             Color:
-                rgba: 0.7, 0.85, 1.0, 0.6
-            RoundedRectangle:
+                rgba: 1.0, 0.5, 0.0, 0.8
+            Rectangle:
                 pos: self.pos
                 size: self.size
-                radius: [20]
-        Label:
-            font_name: "ChineseHei"
-            text: "🐾 伙伴动画区域"
-            font_size: "20sp"
-            color: 0.4, 0.4, 0.4, 1
 
     # ── Toast 提示 ──
     Label:

@@ -1,0 +1,12 @@
+=== Companion3DWidget ===
+pos=(30, 361)  size=(1140, 202)
+center_local=(570, 101)
+center_window=(600, 462)
+top=563  bottom=361
+
+=== 兄弟 Widget (从下到上) ===
+  [0] Button  pos=(30,30)  size=(1140,243)  top=273
+  [1] Label  pos=(30,293)  size=(1140,49)  top=341
+  [2] Companion3DWidget  pos=(30,361)  size=(1140,202)  top=563
+  [3] BoxLayout  pos=(0,0)  size=(100,100)  top=100
+  [4] BoxLayout  pos=(0,0)  size=(100,100)  top=100
