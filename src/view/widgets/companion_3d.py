@@ -17,7 +17,7 @@ _MODELS_DIR = os.path.join(
 _DEFAULT_MODEL = os.path.join(_MODELS_DIR, "companion.obj")
 
 _CUBE_VERTS = [
-    (-1,-1,-1),( 1,-1,-1),( 1, 1,-1),(-1, 1,-1),
+    (-2,-2,-2),( 1,-1,-1),( 1, 1,-1),(-1, 1,-1),
     (-1,-1, 1),( 1,-1, 1),( 1, 1, 1),(-1, 1, 1),
 ]
 _CUBE_EDGES = [
@@ -60,7 +60,7 @@ class Companion3DWidget(Widget):
     viewmodel = ObjectProperty(None)
     AUTO_ROTATE_SPEED = 0.8
     AUTO_RESUME_DELAY = 1.5
-    DRAG_SENSITIVITY = 0.008
+    DRAG_SENSITIVITY = 0.01
     BOUNCE_AMP = 5.0
     BOUNCE_FREQ = 2.0
 
