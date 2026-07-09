@@ -29,7 +29,7 @@ class AntiCheat:
         elapsed = now - self._last_drink_time
         if elapsed < self.cooldown_seconds:
             remaining = int(self.cooldown_seconds - elapsed)
-            return False, f"再等等哦～ {remaining}秒"
+            return False, f"再等等哦～ "
 
         # daily cap check
         if self._today_cups >= self.daily_max_cups:
