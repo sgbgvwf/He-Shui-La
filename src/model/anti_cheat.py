@@ -59,3 +59,22 @@ class AntiCheat:
     def remaining_cooldown(self) -> float:
         elapsed = time.time() - self._last_drink_time
         return max(0.0, self.cooldown_seconds - elapsed)
+
+    # ── serialization ───────────────────────────────────────────
+
+    def to_dict(self) -> dict:
+        """Serialize mutable state. Settings (cooldown, daily_max) live in user_config."""
+        return {
+            "last_drink_time": self._last_drink_time,
+            "today_cups": self._today_cups,
+            "last_date": self._last_date,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict, *, cooldown_seconds: int = 300, daily_max_cups: int = 15) -> "AntiCheat":
+        """Restore from dict. Settings must be passed separately from user_config."""
+        ac = cls(cooldown_seconds=cooldown_seconds, daily_max_cups=daily_max_cups)
+        ac._last_drink_time = float(d.get("last_drink_time", 0.0))
+        ac._today_cups = int(d.get("today_cups", 0))
+        ac._last_date = str(d.get("last_date", ""))
+        return ac
