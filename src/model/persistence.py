@@ -1,0 +1,139 @@
+"""Persistence layer — atomic JSON read/write with .bak fallback.
+
+Two files are managed:
+  - ``game_state.json`` : mutable runtime state (companion, anticheat)
+  - ``user_config.json`` : user-tweakable settings
+
+Atomic write pattern: write to ``<path>.tmp`` then ``os.replace`` onto the target,
+followed by ``shutil.copy2`` to ``<path>.bak`` for crash recovery.
+
+Load order: target file → ``.bak`` → default dict.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+
+
+# ── file names ───────────────────────────────────────────────────────
+
+GAME_STATE_FILE = "game_state.json"
+USER_CONFIG_FILE = "user_config.json"
+
+SCHEMA_VERSION = 1
+
+
+# ── default payloads (mirror Model defaults) ─────────────────────────
+
+def _default_game_state() -> dict:
+    return {
+        "version": SCHEMA_VERSION,
+        "companion": {
+            "name": "小水滴",
+            "hydration": 100.0,
+            "exp": 0,
+            "level": 1,
+        },
+        "anticheat": {
+            "last_drink_time": 0.0,
+            "today_cups": 0,
+            "last_date": "",
+        },
+    }
+
+
+def _default_user_config() -> dict:
+    return {
+        "version": SCHEMA_VERSION,
+        "target_cups": 8,
+        "cooldown_seconds": 300,
+        "daily_max_cups": 15,
+        "sound_enabled": True,
+        "partner_name": "小水滴",
+    }
+
+
+# ── primitives ──────────────────────────────────────────────────────
+
+def ensure_data_dir(data_dir: str) -> None:
+    """Create the data directory tree if it doesn't exist."""
+    os.makedirs(data_dir, exist_ok=True)
+
+
+def _save_json(path: str, payload: dict) -> None:
+    """Atomic write: write to .tmp → os.replace → copy to .bak."""
+    tmp = path + ".tmp"
+    bak = path + ".bak"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+    try:
+        shutil.copy2(path, bak)
+    except OSError:
+        # backup best-effort; primary write already succeeded
+        pass
+
+
+def _load_json(path: str) -> dict | None:
+    """Load JSON, falling back to .bak on missing/corrupt primary file."""
+    bak = path + ".bak"
+    for candidate in (path, bak):
+        if not os.path.exists(candidate):
+            continue
+        try:
+            with open(candidate, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except (json.JSONDecodeError, OSError):
+            continue
+    return None
+
+
+def _deep_merge(base: dict, overlay: dict) -> dict:
+    """Recursively merge overlay into base; overlay values win on leaf conflict."""
+    result = dict(base)
+    for key, value in overlay.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+# ── game_state ──────────────────────────────────────────────────────
+
+def save_game_state(data_dir: str, state: dict) -> None:
+    """Persist runtime state. ``state`` is written verbatim (no schema injection)."""
+    ensure_data_dir(data_dir)
+    path = os.path.join(data_dir, GAME_STATE_FILE)
+    _save_json(path, state)
+
+
+def load_game_state(data_dir: str) -> dict:
+    """Return persisted state merged with defaults (recursively)."""
+    path = os.path.join(data_dir, GAME_STATE_FILE)
+    loaded = _load_json(path)
+    if loaded is None:
+        return _default_game_state()
+    return _deep_merge(_default_game_state(), loaded)
+
+
+# ── user_config ─────────────────────────────────────────────────────
+
+def save_user_config(data_dir: str, config: dict) -> None:
+    """Persist user settings. ``config`` is written verbatim."""
+    ensure_data_dir(data_dir)
+    path = os.path.join(data_dir, USER_CONFIG_FILE)
+    _save_json(path, config)
+
+
+def load_user_config(data_dir: str) -> dict:
+    """Return persisted settings merged with defaults (recursively)."""
+    path = os.path.join(data_dir, USER_CONFIG_FILE)
+    loaded = _load_json(path)
+    if loaded is None:
+        return _default_user_config()
+    return _deep_merge(_default_user_config(), loaded)

@@ -33,7 +33,19 @@ class DrinkLaApp(App):
     def build(self):
         Builder.load_file(KV_PATH)
         self.vm = MainViewModel()
+        self.vm.load_state(self.user_data_dir)
         return MainScreen(viewmodel=self.vm)
+
+    def on_stop(self) -> None:
+        """Desktop window close — flush state synchronously."""
+        if self.vm is not None:
+            self.vm.save_state(self.user_data_dir)
+
+    def on_pause(self) -> None:
+        """Android background — flush state synchronously."""
+        if self.vm is not None:
+            self.vm.save_state(self.user_data_dir)
+        return True
 
 
 if __name__ == "__main__":

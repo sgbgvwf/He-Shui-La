@@ -27,11 +27,15 @@ class MainViewModel(EventDispatcher):
 
     # decay every 3 seconds
     DECAY_INTERVAL = 3.0
+    # debounce autosave window
+    AUTOSAVE_DEBOUNCE_SECONDS = 2.0
 
-    def __init__(self, **kwargs):
+    def __init__(self, data_dir: str | None = None, **kwargs):
         super().__init__(**kwargs)
+        self.data_dir = data_dir
         self.companion = Companion()
-        self.anticheat = AntiCheat(cooldown_seconds=300, daily_max_cups=15)
+        self.anticheat = AntiCheat()
+        self._save_handle = None
 
         # start decay clock
         Clock.schedule_interval(self._tick, self.DECAY_INTERVAL)
@@ -52,6 +56,7 @@ class MainViewModel(EventDispatcher):
         result = self.companion.drink()
         self.anticheat.record()
         self._sync_from_model()
+        self._schedule_autosave()
 
         if result.get("leveled_up"):
             stage = self.companion.evolution_stage
@@ -62,6 +67,72 @@ class MainViewModel(EventDispatcher):
     def dismiss_toast(self) -> None:
         self.toast_visible = False
         self.toast_message = ""
+
+    # ── persistence ─────────────────────────────────────────────
+
+    def load_state(self, data_dir: str) -> None:
+        """Load settings + state from disk. Called by App.build()."""
+        from src.model.persistence import (
+            load_user_config,
+            load_game_state,
+            ensure_data_dir,
+        )
+        self.data_dir = data_dir
+        ensure_data_dir(data_dir)
+
+        config = load_user_config(data_dir)
+
+        # build state with settings from user_config
+        state = load_game_state(data_dir)
+
+        self.companion = Companion(
+            name=config.get("partner_name", state["companion"].get("name", "小水滴"))
+        )
+        self.companion._hydration = state["companion"].get("hydration", 100.0)
+        self.companion._exp = state["companion"].get("exp", 0)
+        self.companion._level = state["companion"].get("level", 1)
+
+        self.anticheat = AntiCheat.from_dict(
+            state["anticheat"],
+            cooldown_seconds=config["cooldown_seconds"],
+            daily_max_cups=config["daily_max_cups"],
+        )
+
+        self._sync_from_model()
+
+    def save_state(self, data_dir: str | None = None) -> None:
+        """Force-save state + settings. Called by on_stop / on_pause."""
+        from src.model.persistence import save_game_state, save_user_config
+        target = data_dir or self.data_dir
+        if not target:
+            return
+
+        save_game_state(target, {
+            "version": 1,
+            "companion": self.companion.to_dict(),
+            "anticheat": self.anticheat.to_dict(),
+        })
+        save_user_config(target, {
+            "version": 1,
+            "target_cups": 8,  # placeholder; P1 settings screen will own this
+            "cooldown_seconds": self.anticheat.cooldown_seconds,
+            "daily_max_cups": self.anticheat.daily_max_cups,
+            "sound_enabled": True,
+            "partner_name": self.companion.name,
+        })
+
+        # cancel any pending debounced save (we just wrote synchronously)
+        if self._save_handle is not None:
+            self._save_handle.cancel()
+            self._save_handle = None
+
+    def _schedule_autosave(self) -> None:
+        """Debounce 2s after a drink; on_stop/on_pause force final save."""
+        if self._save_handle is not None:
+            self._save_handle.cancel()
+        self._save_handle = Clock.schedule_once(
+            lambda _dt: self.save_state(), self.AUTOSAVE_DEBOUNCE_SECONDS
+        )
 
     # ── internal ────────────────────────────────────────────────
 
