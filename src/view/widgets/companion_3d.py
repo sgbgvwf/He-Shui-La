@@ -58,15 +58,15 @@ class Companion3DWidget(Widget):
     """面+边深度混排 3D 模型."""
 
     viewmodel = ObjectProperty(None)
-    AUTO_ROTATE_SPEED = 0.8
-    AUTO_RESUME_DELAY = 1.5
+    AUTO_ROTATE_SPEED = 0.6
+    AUTO_RESUME_DELAY = 1.0
     DRAG_SENSITIVITY = 0.01
-    BOUNCE_AMP = 5.0
-    BOUNCE_FREQ = 2.0
+    BOUNCE_AMP = 2.5
+    BOUNCE_FREQ = 1.0
 
     def __init__(self, model_path=None, **kwargs):
         super().__init__(**kwargs)
-        self._auto_ay = 0.0; self._auto_ax = 0.35
+        self._auto_ay = 0.0; self._auto_ax = -0.6
         self._drag_ay = 0.0; self._drag_ax = 0.0
         self._dragging = False; self._release_t = 0.0
         self._last_t = (0.0, 0.0); self._tacc = 0.0; self._bounce = 0.0
@@ -97,7 +97,7 @@ class Companion3DWidget(Widget):
         x, z = x*cy + z*sy, -x*sy + z*cy
         cx, sx = math.cos(ax), math.sin(ax)
         y, z = y*cx - z*sx, y*sx + z*cx
-        s = 1.5 / max(z + 3.0, 0.1)
+        s = 2.5 / max(z + 8.0, 0.1)
         return x*s, y*s, z
 
     def _on_geo(self, *a): pass
@@ -168,7 +168,7 @@ class Companion3DWidget(Widget):
     def on_touch_move(self, touch):
         if touch.grab_current is self:
             dx = touch.x - self._last_t[0]; dy = touch.y - self._last_t[1]
-            self._drag_ay += dx * self.DRAG_SENSITIVITY
+            self._drag_ay -= dx * self.DRAG_SENSITIVITY
             self._drag_ax += dy * self.DRAG_SENSITIVITY * 0.5
             self._last_t = touch.pos; return True
         return super().on_touch_move(touch)
