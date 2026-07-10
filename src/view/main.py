@@ -9,10 +9,15 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
 
 from src.viewmodel.main_viewmodel import MainViewModel
+from src.view.sound_manager import SoundManager
 
 KV_PATH = "src/view/main_screen.kv"
 SETTINGS_KV_PATH = "src/view/settings_dialog.kv"
 ACHIEVEMENT_KV_PATH = "src/view/achievement_screen.kv"
+
+_SOUNDS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "resources", "sounds"
+)
 
 # ── 注册中文字体 ──
 _FONT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -129,6 +134,10 @@ class DrinkLaApp(App):
         Builder.load_file(KV_PATH)
         self.vm = MainViewModel()
         self.vm.load_state(self.user_data_dir)
+        # wire sound (after load_state so sound_enabled is known)
+        self.vm.set_sound_manager(
+            SoundManager(_SOUNDS_DIR, enabled=self.vm.config.sound_enabled)
+        )
         return MainScreen(viewmodel=self.vm)
 
     def on_stop(self) -> None:
