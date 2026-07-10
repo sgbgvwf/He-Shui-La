@@ -4,11 +4,31 @@ EVOLUTION_STAGES = {1: "形态A", 2: "形态B", 3: "形态C", 4: "形态D", 5: "
 
 
 class Companion:
-    """Virtual companion driven by drinking water."""
+    """Virtual companion driven by drinking water.
 
-    def __init__(self, name: str = "小水滴") -> None:
+    All tunable values are constructor-injected from ``GameConfig``;
+    defaults match the design-doc v4.9 placeholders.
+    """
+
+    def __init__(
+        self,
+        name: str = "小水滴",
+        *,
+        hydration_max: float = 100.0,
+        hydration_per_drink: float = 20.0,
+        hydration_low_threshold: float = 20.0,
+        exp_per_drink: int = 10,
+        exp_per_level: int = 100,
+        decay_per_tick: float = 1.0,
+    ) -> None:
         self.name = name
-        self._hydration = 100.0
+        self._hydration = hydration_max
+        self._hydration_max = hydration_max
+        self._hydration_per_drink = hydration_per_drink
+        self._hydration_low_threshold = hydration_low_threshold
+        self._exp_per_drink = exp_per_drink
+        self._exp_per_level = exp_per_level
+        self._decay_per_tick = decay_per_tick
         self._exp = 0
         self._level = 1
 
@@ -36,7 +56,7 @@ class Companion:
 
     @property
     def is_hydrated(self) -> bool:
-        return self._hydration > 20
+        return self._hydration > self._hydration_low_threshold
 
     # ── actions ─────────────────────────────────────────────────
 
@@ -44,12 +64,13 @@ class Companion:
         """Record a drink. Optional *streak_bonus* multiplier (0.0–0.5)."""
         prev_level = self._level
 
-        self._hydration = min(100.0, self._hydration + 20)
-        gained = int(10 * (1.0 + streak_bonus))
+        self._hydration = min(
+            self._hydration_max, self._hydration + self._hydration_per_drink
+        )
+        gained = int(self._exp_per_drink * (1.0 + streak_bonus))
         self._exp += gained
 
-        # level-up: every 100 exp → +1 level
-        self._level = 1 + self._exp // 100
+        self._level = 1 + self._exp // self._exp_per_level
 
         return {
             "hydration": self._hydration,
@@ -63,7 +84,7 @@ class Companion:
         prev_level = self._level
         gained = int(amount * (1.0 + streak_bonus))
         self._exp += gained
-        self._level = 1 + self._exp // 100
+        self._level = 1 + self._exp // self._exp_per_level
         return {
             "exp_gained": gained,
             "leveled_up": self._level > prev_level,
@@ -72,7 +93,7 @@ class Companion:
 
     def tick(self) -> None:
         """Natural hydration decay — call every N seconds."""
-        self._hydration = max(0.0, self._hydration - 1)
+        self._hydration = max(0.0, self._hydration - self._decay_per_tick)
 
     # ── helpers ─────────────────────────────────────────────────
 

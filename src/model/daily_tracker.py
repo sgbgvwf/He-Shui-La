@@ -14,8 +14,13 @@ class DailyTracker:
     Caller must invoke ``reset_if_new_day()`` before ``record()``.
     """
 
-    def __init__(self, daily_target: int = 8) -> None:
+    def __init__(
+        self,
+        daily_target: int = 8,
+        streak_bonus_table: tuple = ((3, 0.10), (7, 0.20), (15, 0.30), (30, 0.50)),
+    ) -> None:
         self.daily_target = daily_target
+        self._streak_bonus_table = streak_bonus_table  # sorted ascending (days, rate)
         self._today_cups: int = 0
         self._last_date: str = ""                 # "YYYY-MM-DD"
         self._streak_days: int = 0
@@ -33,17 +38,12 @@ class DailyTracker:
 
     @property
     def streak_bonus(self) -> float:
-        """EXP multiplier from consecutive days. Capped at +50%."""
-        s = self._streak_days
-        if s >= 30:
-            return 0.50
-        if s >= 15:
-            return 0.30
-        if s >= 7:
-            return 0.20
-        if s >= 3:
-            return 0.10
-        return 0.0
+        """EXP multiplier from consecutive days, driven by config table."""
+        result = 0.0
+        for threshold, rate in self._streak_bonus_table:
+            if self._streak_days >= threshold:
+                result = rate
+        return result
 
     @property
     def today_target_completed(self) -> bool:
@@ -122,9 +122,15 @@ class DailyTracker:
         }
 
     @classmethod
-    def from_dict(cls, d: dict, *, daily_target: int = 8) -> "DailyTracker":
-        """Restore from dict. ``daily_target`` must be passed from user_config."""
-        dt = cls(daily_target=daily_target)
+    def from_dict(
+        cls,
+        d: dict,
+        *,
+        daily_target: int = 8,
+        streak_bonus_table: tuple = ((3, 0.10), (7, 0.20), (15, 0.30), (30, 0.50)),
+    ) -> "DailyTracker":
+        """Restore from dict. Settings must be passed from user_config."""
+        dt = cls(daily_target=daily_target, streak_bonus_table=streak_bonus_table)
         dt._today_cups = int(d.get("today_cups", 0))
         dt._last_date = str(d.get("last_date", ""))
         dt._streak_days = int(d.get("streak_days", 0))
