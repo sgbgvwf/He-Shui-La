@@ -69,6 +69,7 @@ class MainViewModel(EventDispatcher):
         self.achievement_manager.total_cups += 1
         self._sync_from_model()
         self._schedule_autosave()
+        self._log_drink()
 
         # achievement check (run before toast so we can append to the message)
         new_ach = self.achievement_manager.check(self.companion, self.daily_tracker)
@@ -205,6 +206,15 @@ class MainViewModel(EventDispatcher):
         """Reload config + state from disk. Called after settings changed."""
         if self.data_dir:
             self.load_state(self.data_dir)
+
+    def _log_drink(self) -> None:
+        """Append a drink log entry (non-blocking, best-effort)."""
+        import time
+        from src.model.persistence import append_drink_log
+        try:
+            append_drink_log(self.data_dir, time.time())
+        except OSError:
+            pass  # log is non-critical
 
     def _play_sound(self, name: str) -> None:
         if self._sound_manager is not None:

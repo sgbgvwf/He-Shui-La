@@ -175,3 +175,35 @@ def load_user_config(data_dir: str) -> dict:
     if loaded is None:
         return _default_user_config()
     return _deep_merge(_default_user_config(), loaded)
+
+
+# ── drink_log ──────────────────────────────────────────────────────
+
+DRINK_LOG_FILE = "drink_log.json"
+_DRINK_LOG_RETENTION_SECONDS = 90 * 86400  # 90 days
+
+
+def append_drink_log(data_dir: str, timestamp: float) -> None:
+    """Append a drink entry and trim entries older than 90 days."""
+    import time as _time
+    ensure_data_dir(data_dir)
+    path = os.path.join(data_dir, DRINK_LOG_FILE)
+
+    log = _load_json(path)
+    entries: list = log.get("entries", []) if log else []
+    entries.append({"ts": timestamp})
+    cutoff = _time.time() - _DRINK_LOG_RETENTION_SECONDS
+    entries = [e for e in entries if e.get("ts", 0) >= cutoff]
+
+    _save_json(path, {"entries": entries})
+
+
+def load_drink_log(data_dir: str) -> list:
+    """Return drink log entries (most recent first)."""
+    path = os.path.join(data_dir, DRINK_LOG_FILE)
+    log = _load_json(path)
+    if log is None:
+        return []
+    entries = log.get("entries", [])
+    entries.sort(key=lambda e: e.get("ts", 0), reverse=True)
+    return entries
