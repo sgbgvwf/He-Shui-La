@@ -284,6 +284,7 @@ drink-la/
 | `feat/DailyTracker` | P1-1 | 拆分 DailyTracker 模型，连续天数 streak，每日目标达成奖励 | ✅ 已推送 |
 | `feat/streak-bonus` | P1-2 | 连续天数经验加成：3天+10%、7天+20%、15天+30%、30天+50% | ✅ 已推送 |
 | `feat/configurable-params` | P1-3 | GameConfig 统一管理 17 个可调参数，消除全部硬编码 | ✅ 已推送 |
+| `feat/progress-stars` | P2-1 | 星星进度条组件 — Canvas 绘制 5 角星，左对齐 | ✅ 已推送 |
 
 ### 文件清单 vs 设计文档对照
 
@@ -301,7 +302,7 @@ drink-la/
 | `src/view/main_screen.kv` | ✅ 已实现（基础版） |
 | `src/view/achievement_screen.kv` | ❌ 未实现 |
 | `src/view/settings_screen.kv` | ❌ 未实现 |
-| `src/view/widgets/progress_stars.py` | ❌ 未实现 |
+| `src/view/widgets/progress_stars.py` | ✅ 已实现（Canvas 5 角星 Mesh） |
 | `src/view/widgets/streak_fire.py` | ❌ 未实现 |
 | `src/view/widgets/toast.py` | ❌（当前用 Label 模拟） |
 | `src/view/widgets/companion_3d.py` | ✅ 已实现（纯 Python 软渲染） |
@@ -320,11 +321,10 @@ drink-la/
 
 **总计：60 条测试，全部通过。**
 
-### 当前实现度：约 45%（Model 层 90%，View 层 20%，ViewModel 层 50%）
+### 当前实现度：约 50%（Model 层 90%，View 层 25%，ViewModel 层 50%）
 
 ### 下一步
 
-- **P2-1**：星星进度条组件 `progress_stars.py`
 - **P2-2**：连续天数火焰组件 `streak_fire.py`
 - **P2-3**：家长设置界面 + ViewModel
 - **P2-4**：成就系统（占位）
