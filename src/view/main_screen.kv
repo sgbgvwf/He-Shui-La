@@ -1,6 +1,7 @@
 #:kivy 2.2
 #:import Companion3DWidget src.view.widgets.companion_3d.Companion3DWidget
 #:import ProgressStars src.view.widgets.progress_stars.ProgressStars
+#:import StreakFire src.view.widgets.streak_fire.StreakFire
 # 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
 
 <MainScreen>:
@@ -34,6 +35,12 @@
             font_size: "18sp"
             color: 0.3, 0.3, 0.3, 1
             size_hint_y: 0.5
+
+    # ── 连续天数火焰 ──
+    StreakFire:
+        id: streak_fire
+        viewmodel: root.vm
+        size_hint_y: 0.08
 
     # ── 水分值进度条 ──
     BoxLayout:
