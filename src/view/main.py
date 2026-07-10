@@ -137,6 +137,13 @@ class DrinkLaApp(App):
         Builder.load_file(ACHIEVEMENT_KV_PATH)
         Builder.load_file(KV_PATH)
         self.vm = MainViewModel()
+        root = MainScreen(viewmodel=self.vm)
+        root.ids.companion_3d.setup_companions([
+            "src/view/resources/models/companion.obj",
+            "src/view/resources/models/ico.obj",
+            "src/view/resources/models/diamond.obj",
+        ])
+        return root
         self.vm.load_state(self.user_data_dir)
         # wire sound (after load_state so sound_enabled is known)
         self.vm.set_sound_manager(
@@ -158,3 +165,4 @@ class DrinkLaApp(App):
 
 if __name__ == "__main__":
     DrinkLaApp().run()
+
