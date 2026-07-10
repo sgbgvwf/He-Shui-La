@@ -2,6 +2,7 @@
 #:import Companion3DWidget src.view.widgets.companion_3d.Companion3DWidget
 #:import ProgressStars src.view.widgets.progress_stars.ProgressStars
 #:import StreakFire src.view.widgets.streak_fire.StreakFire
+#:import SettingsGear src.view.widgets.settings_gear.SettingsGear
 # 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
 
 <MainScreen>:
@@ -21,13 +22,29 @@
         orientation: "vertical"
         spacing: 8
 
-        Label:
-            font_name: "ChineseHei"
-            text: "💧 " + root.vm.evolution_stage
-            font_size: "28sp"
-            bold: True
-            color: 0.2, 0.5, 0.9, 1
+        BoxLayout:
+            orientation: "horizontal"
             size_hint_y: 0.5
+
+            Label:
+                font_name: "ChineseHei"
+                text: "💧 " + root.vm.evolution_stage
+                font_size: "28sp"
+                bold: True
+                color: 0.2, 0.5, 0.9, 1
+
+            FloatLayout:
+                size_hint_x: None
+                width: 44
+
+                SettingsGear:
+                    size_hint: (1, 1)
+
+                Button:
+                    size_hint: (1, 1)
+                    background_normal: ""
+                    background_color: 0, 0, 0, 0
+                    on_release: root.open_settings()
 
         Label:
             font_name: "ChineseHei"

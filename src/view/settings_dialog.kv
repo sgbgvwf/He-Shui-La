@@ -1,0 +1,219 @@
+#:kivy 2.2
+# 喝水啦 — 家长设置界面 (算术验证 + 参数调整)
+
+# ── 算术验证弹窗 ──────────────────────────────────────────
+
+<VerifyPopup>:
+    title: ""
+    title_size: 0
+    size_hint: (0.85, 0.42)
+    auto_dismiss: False
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 10
+        Label:
+            font_name: "ChineseHei"
+            text: "家长验证"
+            font_size: "24sp"
+            bold: True
+            size_hint_y: None
+            height: "36sp"
+            halign: "center"
+        Label:
+            font_name: "ChineseHei"
+            text: "请回答：  " + str(root.settings_vm.verify_a) + "  +  " + str(root.settings_vm.verify_b) + "  =  ?"
+            font_size: "22sp"
+            halign: "center"
+            valign: "middle"
+            size_hint_y: None
+            height: "32sp"
+        TextInput:
+            font_name: "ChineseHei"
+            text: root.settings_vm.verify_input
+            hint_text: "输入答案"
+            font_size: "24sp"
+            multiline: False
+            input_filter: "int"
+            size_hint_y: None
+            height: "52sp"
+            padding: [10, 8]
+            on_text: root.settings_vm.verify_input = self.text
+        Label:
+            font_name: "ChineseHei"
+            text: root.settings_vm.verify_error
+            font_size: "14sp"
+            color: 1, 0.2, 0.2, 1
+            size_hint_y: None
+            height: "20sp"
+        BoxLayout:
+            orientation: "horizontal"
+            spacing: 20
+            size_hint_y: None
+            height: "44sp"
+            Button:
+                font_name: "ChineseHei"
+                text: "取消"
+                font_size: "16sp"
+                background_color: 0.7, 0.7, 0.7, 1
+                on_release: root.dismiss()
+            Button:
+                font_name: "ChineseHei"
+                text: "确认"
+                font_size: "16sp"
+                background_color: 0.3, 0.6, 1.0, 1
+                on_release: root.on_verify()
+
+# ── 设置弹窗 ──────────────────────────────────────────────
+
+<SettingsPopup>:
+    title: ""
+    title_size: 0
+    size_hint: (0.88, 0.78)
+    auto_dismiss: False
+    BoxLayout:
+        orientation: "vertical"
+        padding: 16
+        spacing: 8
+
+        # ── 自定义标题 ──
+        Label:
+            font_name: "ChineseHei"
+            text: "家长设置"
+            font_size: "24sp"
+            bold: True
+            size_hint_y: None
+            height: 40
+            halign: "center"
+
+        ScrollView:
+            BoxLayout:
+                orientation: "vertical"
+                spacing: 14
+                size_hint_y: None
+                height: self.minimum_height
+
+                # ── 每日目标杯数 ──
+                BoxLayout:
+                    orientation: "vertical"
+                    spacing: 2
+                    size_hint_y: None
+                    height: 60
+                    Label:
+                        font_name: "ChineseHei"
+                        text: "每日目标：  " + str(int(root.settings_vm.daily_target)) + " 杯"
+                        font_size: "16sp"
+                        halign: "left"
+                        size_hint_y: 0.5
+                    Slider:
+                        value: root.settings_vm.daily_target
+                        min: 1
+                        max: 20
+                        step: 1
+                        size_hint_y: 0.5
+                        on_value: root.settings_vm.daily_target = int(self.value)
+
+                # ── 冷却时间 ──
+                BoxLayout:
+                    orientation: "vertical"
+                    spacing: 2
+                    size_hint_y: None
+                    height: 60
+                    Label:
+                        font_name: "ChineseHei"
+                        text: "喝水冷却：  " + str(int(root.settings_vm.cooldown_minutes)) + " 分钟"
+                        font_size: "16sp"
+                        halign: "left"
+                        size_hint_y: 0.5
+                    Slider:
+                        value: root.settings_vm.cooldown_minutes
+                        min: 0
+                        max: 60
+                        step: 1
+                        size_hint_y: 0.5
+                        on_value: root.settings_vm.cooldown_minutes = int(self.value)
+
+                # ── 每日上限 ──
+                BoxLayout:
+                    orientation: "vertical"
+                    spacing: 2
+                    size_hint_y: None
+                    height: 60
+                    Label:
+                        font_name: "ChineseHei"
+                        text: "每日上限：  " + str(int(root.settings_vm.daily_max_cups)) + " 杯"
+                        font_size: "16sp"
+                        halign: "left"
+                        size_hint_y: 0.5
+                    Slider:
+                        value: root.settings_vm.daily_max_cups
+                        min: 1
+                        max: 30
+                        step: 1
+                        size_hint_y: 0.5
+                        on_value: root.settings_vm.daily_max_cups = int(self.value)
+
+                # ── 伙伴昵称 ──
+                BoxLayout:
+                    orientation: "vertical"
+                    spacing: 4
+                    size_hint_y: None
+                    height: "80sp"
+                    Label:
+                        font_name: "ChineseHei"
+                        text: "伙伴昵称："
+                        font_size: "16sp"
+                        halign: "left"
+                        size_hint_y: None
+                        height: "24sp"
+                    TextInput:
+                        font_name: "ChineseHei"
+                        text: root.settings_vm.partner_name
+                        font_size: "18sp"
+                        multiline: False
+                        size_hint_y: None
+                        height: "44sp"
+                        padding: [10, 6]
+                        on_text: root.settings_vm.partner_name = self.text
+
+                # ── 音效开关 ──
+                BoxLayout:
+                    orientation: "horizontal"
+                    spacing: 12
+                    size_hint_y: None
+                    height: 40
+                    Label:
+                        font_name: "ChineseHei"
+                        text: "音效开关"
+                        font_size: "16sp"
+                        halign: "left"
+                        size_hint_x: 0.7
+                    CheckBox:
+                        active: root.settings_vm.sound_enabled
+                        size_hint_x: 0.3
+                        on_active: root.settings_vm.sound_enabled = self.active
+
+        # ── 底部按钮 ──
+        BoxLayout:
+            orientation: "horizontal"
+            spacing: 12
+            size_hint_y: None
+            height: 48
+            Button:
+                font_name: "ChineseHei"
+                text: "取消"
+                font_size: "16sp"
+                background_color: 0.7, 0.7, 0.7, 1
+                on_release: root.dismiss()
+            Button:
+                font_name: "ChineseHei"
+                text: "重置数据"
+                font_size: "16sp"
+                background_color: 1.0, 0.4, 0.3, 1
+                on_release: root.on_reset()
+            Button:
+                font_name: "ChineseHei"
+                text: "保存"
+                font_size: "16sp"
+                background_color: 0.3, 0.6, 1.0, 1
+                on_release: root.on_save()
