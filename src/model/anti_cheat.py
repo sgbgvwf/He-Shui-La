@@ -13,17 +13,27 @@ class AntiCheat:
         self._today_cups: int = 0
         self._last_date: str = ""
 
-    # ── validation ──────────────────────────────────────────────
+    # ── cross-day ──────────────────────────────────────────────
 
-    def can_drink(self) -> tuple[bool, str]:
-        """Return (allowed, reason)."""
+    def reset_if_new_day(self) -> bool:
+        """If the date has changed since last record, reset daily counters.
+
+        Returns True when a cross-day reset was performed.
+        Call this explicitly before ``can_drink()`` / ``record()``.
+        """
         now = time.time()
         today = time.strftime("%Y-%m-%d", time.localtime(now))
-
-        # cross-day reset
         if today != self._last_date:
             self._today_cups = 0
             self._last_date = today
+            return True
+        return False
+
+    # ── validation ──────────────────────────────────────────────
+
+    def can_drink(self) -> tuple[bool, str]:
+        """Return (allowed, reason).  Pure query — no side-effects."""
+        now = time.time()
 
         # cooldown check
         elapsed = now - self._last_drink_time
@@ -40,15 +50,11 @@ class AntiCheat:
     # ── record ──────────────────────────────────────────────────
 
     def record(self) -> None:
-        """Mark a successful drink."""
-        now = time.time()
-        today = time.strftime("%Y-%m-%d", time.localtime(now))
+        """Mark a successful drink.
 
-        if today != self._last_date:
-            self._today_cups = 0
-            self._last_date = today
-
-        self._last_drink_time = now
+        Caller should have already called ``reset_if_new_day()`` upstream.
+        """
+        self._last_drink_time = time.time()
         self._today_cups += 1
 
     @property

@@ -36,6 +36,7 @@ class MainViewModel(EventDispatcher):
         self.companion = Companion()
         self.anticheat = AntiCheat()
         self._save_handle = None
+        self._toast_handle = None
 
         # start decay clock
         Clock.schedule_interval(self._tick, self.DECAY_INTERVAL)
@@ -47,6 +48,7 @@ class MainViewModel(EventDispatcher):
 
     def drink_water(self) -> None:
         """Handle drink button press."""
+        self.anticheat.reset_if_new_day()
         allowed, reason = self.anticheat.can_drink()
 
         if not allowed:
@@ -67,6 +69,9 @@ class MainViewModel(EventDispatcher):
     def dismiss_toast(self) -> None:
         self.toast_visible = False
         self.toast_message = ""
+        if self._toast_handle is not None:
+            self._toast_handle.cancel()
+            self._toast_handle = None
 
     # ── persistence ─────────────────────────────────────────────
 
@@ -137,9 +142,11 @@ class MainViewModel(EventDispatcher):
     # ── internal ────────────────────────────────────────────────
 
     def _tick(self, dt: float) -> None:
-        """Periodic decay."""
+        """Periodic decay + cross-day check."""
+        self.anticheat.reset_if_new_day()
         self.companion.tick()
         self._sync_from_model()
+        self._schedule_autosave()
 
     def _sync_from_model(self) -> None:
         """Push model state into observable properties."""
@@ -153,5 +160,11 @@ class MainViewModel(EventDispatcher):
         self.button_disabled = not self.anticheat.can_drink()[0]
 
     def _show_toast(self, msg: str) -> None:
+        # cancel any pending dismiss before showing a new message
+        if self._toast_handle is not None:
+            self._toast_handle.cancel()
         self.toast_message = msg
         self.toast_visible = True
+        self._toast_handle = Clock.schedule_once(
+            lambda _dt: self.dismiss_toast(), 2.5
+        )
