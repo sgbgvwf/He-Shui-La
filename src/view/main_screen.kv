@@ -18,12 +18,28 @@
             pos: self.pos
             size: self.size
 
-    # ── 伙伴信息区 ──
-    BoxLayout:
-        size_hint_y: 0.25
-        orientation: "vertical"
-        spacing: 8
+    # ── 形态 ──
+    Label:
+        font_name: "ChineseHei"
+        text: "💧 " + root.vm.evolution_stage
+        font_size: "28sp"
+        bold: True
+        color: 0.2, 0.5, 0.9, 1
+        size_hint_y: 0.08
 
+    # ── 3D 伙伴模型 ──
+    Companion3DWidget:
+        id: companion_3d
+        viewmodel: root.vm
+        size_hint_y: 0.35
+
+    # ── 喝水数 ──
+    Label:
+        font_name: "ChineseHei"
+        text: "Lv." + str(root.vm.level) + "  已喝 " + str(root.vm.today_cups) + " 杯"
+        font_size: "18sp"
+        color: 0.3, 0.3, 0.3, 1
+        size_hint_y: 0.06
         BoxLayout:
             orientation: "horizontal"
             size_hint_y: 0.5
@@ -124,3 +140,4 @@
                 pos: self.pos
                 size: self.size
                 radius: [40]
+
