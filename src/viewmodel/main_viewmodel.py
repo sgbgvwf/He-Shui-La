@@ -149,8 +149,21 @@ class MainViewModel(EventDispatcher):
         save_user_config(target, {
             "version": 1,
             "target_cups": self.config.daily_target,
+            "target_reward_exp": self.config.target_reward_exp,
+            "streak_bonus_table": [
+                [int(d), float(r)] for d, r in self.config.streak_bonus_table
+            ],
             "cooldown_seconds": self.config.cooldown_seconds,
             "daily_max_cups": self.config.daily_max_cups,
+            "hydration_per_drink": self.config.hydration_per_drink,
+            "hydration_max": self.config.hydration_max,
+            "hydration_low_threshold": self.config.hydration_low_threshold,
+            "exp_per_drink": self.config.exp_per_drink,
+            "exp_per_level": self.config.exp_per_level,
+            "decay_per_tick": self.config.decay_per_tick,
+            "decay_interval_seconds": self.config.decay_interval_seconds,
+            "autosave_debounce_seconds": self.config.autosave_debounce_seconds,
+            "toast_duration_seconds": self.config.toast_duration_seconds,
             "sound_enabled": self.config.sound_enabled,
             "partner_name": self.config.partner_name,
         })
@@ -158,6 +171,11 @@ class MainViewModel(EventDispatcher):
         if self._save_handle is not None:
             self._save_handle.cancel()
             self._save_handle = None
+
+    def reload_config(self) -> None:
+        """Reload config + state from disk. Called after settings changed."""
+        if self.data_dir:
+            self.load_state(self.data_dir)
 
     def _schedule_autosave(self) -> None:
         if self._save_handle is not None:
