@@ -1,8 +1,8 @@
 # 喝水啦——移动端儿童喝水养成游戏项目设计文档
 
-**版本**：4.9  
-**日期**：2026-07-07  
-**状态**：子供向细化，具体内容转为占位，功能框架完整，数值与名称后期填充
+**版本**：5.0  
+**日期**：2026-07-10  
+**状态**：核心 Model 层接近完成，ViewModel 集成完毕，P0-P1 迭代已交付，进入 P2 UI 阶段
 
 ---
 
@@ -274,9 +274,66 @@ drink-la/
 
 ---
 
+## 12. 实施进度（2026-07-10）
+
+### 分支交付记录
+
+| 分支 | 迭代 | 内容 | 状态 |
+|------|------|------|------|
+| `develop` | P0 | 修复 `can_drink()` 副作用、Toast 自动消失、衰减触发保存 | ✅ 已合入 |
+| `feat/DailyTracker` | P1-1 | 拆分 DailyTracker 模型，连续天数 streak，每日目标达成奖励 | ✅ 已推送 |
+| `feat/streak-bonus` | P1-2 | 连续天数经验加成：3天+10%、7天+20%、15天+30%、30天+50% | ✅ 已推送 |
+| `feat/configurable-params` | P1-3 | GameConfig 统一管理 17 个可调参数，消除全部硬编码 | ✅ 已推送 |
+
+### 文件清单 vs 设计文档对照
+
+| 设计文档 §3.3 规划 | 当前状态 |
+|---|---|
+| `src/model/companion.py` | ✅ 已实现（含 `award_exp`） |
+| `src/model/daily_tracker.py` | ✅ 已实现（P1-1 新建） |
+| `src/model/anti_cheat.py` | ✅ 已实现（P0 修复 + P1-1 简化） |
+| `src/model/achievement.py` | ❌ 未实现 |
+| `src/model/persistence.py` | ✅ 已实现（含向后兼容迁移） |
+| `src/model/config.py` | ✅ 已实现（P1-3 新建） |
+| `src/viewmodel/main_viewmodel.py` | ✅ 已实现 |
+| `src/viewmodel/achievement_viewmodel.py` | ❌ 未实现 |
+| `src/viewmodel/settings_viewmodel.py` | ❌ 未实现 |
+| `src/view/main_screen.kv` | ✅ 已实现（基础版） |
+| `src/view/achievement_screen.kv` | ❌ 未实现 |
+| `src/view/settings_screen.kv` | ❌ 未实现 |
+| `src/view/widgets/progress_stars.py` | ❌ 未实现 |
+| `src/view/widgets/streak_fire.py` | ❌ 未实现 |
+| `src/view/widgets/toast.py` | ❌（当前用 Label 模拟） |
+| `src/view/widgets/companion_3d.py` | ✅ 已实现（纯 Python 软渲染） |
+| `src/view/shaders/` | ⚠️ 已存在但未被使用 |
+| 音效系统 (`SoundLoader`) | ❌ 未实现 |
+| `drink_log.json` | ❌ 未实现 |
+
+### 测试覆盖
+
+| 文件 | 测试数 | 覆盖内容 |
+|------|--------|----------|
+| `test_anti_cheat.py` | 7 | 冷却、上限、记录 |
+| `test_companion.py` | 12 | 喝水、升级、进化、award_exp、streak 加成 |
+| `test_daily_tracker.py` | 23 | 初始、record、跨天、streak、目标达成、序列化、bonus 表 |
+| `test_persistence.py` | 16 | 读写、原子性、损坏恢复、集成、向后兼容 |
+
+**总计：60 条测试，全部通过。**
+
+### 当前实现度：约 45%（Model 层 90%，View 层 20%，ViewModel 层 50%）
+
+### 下一步
+
+- **P2-1**：星星进度条组件 `progress_stars.py`
+- **P2-2**：连续天数火焰组件 `streak_fire.py`
+- **P2-3**：家长设置界面 + ViewModel
+- **P2-4**：成就系统（占位）
+
+---
+
 ## 11. 附录：项目亮点总结
 - **专为儿童设计**：超大按钮、明亮色彩、表情化反馈。
-- **占位素材灵活升级**：逻辑与美术分离，当前2D序列帧可直接切换为3D模型。
+- **占位素材灵活升级**：逻辑与美术分离，当前 3D 立方体可直接切换为精细模型。
 - **纯陪伴式养成**：无惩罚，只有鼓励，驱动孩子主动喝水。
 - **静默防刷**：可配置冷却与上限，孩子无感。
 - **离线纯净**：保护儿童隐私，家长放心。
@@ -286,4 +343,4 @@ drink-la/
 
 *本文档最终解释权归开发团队所有，内容随项目迭代持续更新。*
 
-*“喝水啦”——咕噜咕噜，和伙伴一起长大！*
+*”喝水啦”——咕噜咕噜，和伙伴一起长大！*
