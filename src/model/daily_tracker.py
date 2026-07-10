@@ -32,6 +32,20 @@ class DailyTracker:
         return self._streak_days
 
     @property
+    def streak_bonus(self) -> float:
+        """EXP multiplier from consecutive days. Capped at +50%."""
+        s = self._streak_days
+        if s >= 30:
+            return 0.50
+        if s >= 15:
+            return 0.30
+        if s >= 7:
+            return 0.20
+        if s >= 3:
+            return 0.10
+        return 0.0
+
+    @property
     def today_target_completed(self) -> bool:
         return self._today_target_completed
 

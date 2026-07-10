@@ -57,7 +57,9 @@ class MainViewModel(EventDispatcher):
             self._show_toast(reason)
             return
 
-        companion_result = self.companion.drink()
+        bonus = self.daily_tracker.streak_bonus
+
+        companion_result = self.companion.drink(streak_bonus=bonus)
         tracker_result = self.daily_tracker.record()
         self.anticheat.record()
         self._sync_from_model()
@@ -65,7 +67,7 @@ class MainViewModel(EventDispatcher):
 
         # Toast priority: target-completion > companion level-up > generic
         if tracker_result.get("target_just_completed"):
-            bonus_result = self.companion.award_exp(20)
+            bonus_result = self.companion.award_exp(20, streak_bonus=bonus)
             self._sync_from_model()
             if bonus_result.get("leveled_up"):
                 stage = self.companion.evolution_stage

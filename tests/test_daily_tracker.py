@@ -15,6 +15,45 @@ class TestDailyTrackerInitial:
         assert dt.today_target_completed is False
         assert dt.daily_target == 8
 
+    def test_streak_bonus_zero_by_default(self):
+        dt = DailyTracker()
+        assert dt.streak_bonus == 0.0
+
+
+class TestDailyTrackerStreakBonus:
+    def test_streak_0_to_2_no_bonus(self):
+        dt = DailyTracker()
+        dt._streak_days = 2
+        assert dt.streak_bonus == 0.0
+
+    def test_streak_3_to_6(self):
+        dt = DailyTracker()
+        dt._streak_days = 3
+        assert dt.streak_bonus == 0.10
+        dt._streak_days = 6
+        assert dt.streak_bonus == 0.10
+
+    def test_streak_7_to_14(self):
+        dt = DailyTracker()
+        dt._streak_days = 7
+        assert dt.streak_bonus == 0.20
+        dt._streak_days = 14
+        assert dt.streak_bonus == 0.20
+
+    def test_streak_15_to_29(self):
+        dt = DailyTracker()
+        dt._streak_days = 15
+        assert dt.streak_bonus == 0.30
+        dt._streak_days = 29
+        assert dt.streak_bonus == 0.30
+
+    def test_streak_30_plus(self):
+        dt = DailyTracker()
+        dt._streak_days = 30
+        assert dt.streak_bonus == 0.50
+        dt._streak_days = 365
+        assert dt.streak_bonus == 0.50
+
 
 class TestDailyTrackerRecord:
     def test_record_increases_cups(self):

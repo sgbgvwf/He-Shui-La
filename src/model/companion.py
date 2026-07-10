@@ -40,30 +40,32 @@ class Companion:
 
     # ── actions ─────────────────────────────────────────────────
 
-    def drink(self) -> dict:
-        """Record a drink. Returns info dict for ViewModel."""
+    def drink(self, streak_bonus: float = 0.0) -> dict:
+        """Record a drink. Optional *streak_bonus* multiplier (0.0–0.5)."""
         prev_level = self._level
 
         self._hydration = min(100.0, self._hydration + 20)
-        self._exp += 10
+        gained = int(10 * (1.0 + streak_bonus))
+        self._exp += gained
 
         # level-up: every 100 exp → +1 level
         self._level = 1 + self._exp // 100
 
         return {
             "hydration": self._hydration,
-            "exp_gained": 10,
+            "exp_gained": gained,
             "leveled_up": self._level > prev_level,
             "new_level": self._level,
         }
 
-    def award_exp(self, amount: int) -> dict:
-        """Award bonus EXP (e.g. daily target) and recalculate level."""
+    def award_exp(self, amount: int, streak_bonus: float = 0.0) -> dict:
+        """Award bonus EXP (e.g. daily target). *streak_bonus* applies too."""
         prev_level = self._level
-        self._exp += amount
+        gained = int(amount * (1.0 + streak_bonus))
+        self._exp += gained
         self._level = 1 + self._exp // 100
         return {
-            "exp_gained": amount,
+            "exp_gained": gained,
             "leveled_up": self._level > prev_level,
             "new_level": self._level,
         }
