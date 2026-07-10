@@ -53,8 +53,8 @@ class SettingsPopup(Popup):
         self.settings_vm.save()
         self.dismiss()
         app = App.get_running_app()
-        if app and hasattr(app, 'root') and hasattr(app.root, 'on_settings_saved'):
-            app.root.on_settings_saved()
+        if app and hasattr(app, 'root') and hasattr(app.root, 'on_data_reset'):
+            app.root.on_data_reset()
 
 
 class AchievementPopup(Popup):
@@ -113,6 +113,10 @@ class MainScreen(BoxLayout):
     def on_settings_saved(self) -> None:
         """Called after settings are saved — flush state, then reload config."""
         self.vm.save_state()
+        self.vm.reload_config()
+
+    def on_data_reset(self) -> None:
+        """Called after data reset — reload without saving (reset_data already saved)."""
         self.vm.reload_config()
 
 

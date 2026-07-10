@@ -91,12 +91,12 @@ class TestDailyTrackerCrossDay:
 
     def test_cross_day_resets_cups_and_target(self):
         dt = DailyTracker()
-        dt._last_date = "2026-07-09"
+        dt._last_date = "2026-07-10"
         dt._today_cups = 5
         dt._streak_days = 3
         dt._today_target_completed = True
 
-        dt.reset_if_new_day()  # → today is >= 2026-07-10
+        dt.reset_if_new_day()  # today is 2026-07-11, yesterday was consecutive
 
         assert dt.today_cups == 0
         assert dt.today_target_completed is False
@@ -105,11 +105,11 @@ class TestDailyTrackerCrossDay:
 
     def test_cross_day_then_record_bumps_streak(self):
         dt = DailyTracker()
-        dt._last_date = "2026-07-09"
+        dt._last_date = "2026-07-10"
         dt._today_cups = 1
         dt._streak_days = 3
 
-        dt.reset_if_new_day()  # consecutive → streak stays 3
+        dt.reset_if_new_day()  # yesterday was consecutive → streak stays 3
         assert dt.streak_days == 3
         dt.record()            # first drink of new day → streak → 4
         assert dt.streak_days == 4
@@ -170,8 +170,8 @@ class TestDailyTrackerTarget:
         dt.record()  # 2/2 → completed
         assert dt.today_target_completed is True
 
-        dt._last_date = "2026-07-09"
-        dt.reset_if_new_day()  # cross-day
+        dt._last_date = "2026-07-10"
+        dt.reset_if_new_day()  # cross-day → today is 2026-07-11
         assert dt.today_target_completed is False
 
         result = dt.record()  # 1/2 on new day
