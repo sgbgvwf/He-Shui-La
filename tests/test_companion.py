@@ -87,6 +87,19 @@ class TestCompanion:
         assert c.level == 1
         assert result["leveled_up"] is False
 
+    def test_drink_with_streak_bonus(self):
+        c = Companion()
+        result = c.drink(streak_bonus=0.3)  # +30%
+        assert c.exp == 13  # int(10 * 1.3) = 13
+        assert result["exp_gained"] == 13
+
+    def test_award_exp_with_streak_bonus(self):
+        c = Companion()
+        result = c.award_exp(20, streak_bonus=0.5)  # +50%
+        assert c.exp == 30  # int(20 * 1.5) = 30
+        assert result["exp_gained"] == 30
+        assert result["leveled_up"] is False
+
     def test_to_dict_and_from_dict(self):
         c = Companion(name="测试水滴")
         c._hydration = 80.0
