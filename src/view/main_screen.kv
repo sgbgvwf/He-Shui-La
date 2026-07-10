@@ -4,6 +4,7 @@
 #:import StreakFire src.view.widgets.streak_fire.StreakFire
 #:import SettingsGear src.view.widgets.settings_gear.SettingsGear
 #:import StickerIcon src.view.widgets.sticker_icon.StickerIcon
+#:import Toast src.view.widgets.toast.Toast
 # 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
 
 <MainScreen>:
@@ -95,14 +96,13 @@
         size_hint_y: 0.25
 
     # ── Toast 提示 ──
-    Label:
-        id: toast_label
+    Toast:
         font_name: "ChineseHei"
-        text: root.vm.toast_message if root.vm.toast_visible else ""
+        text: root.vm.toast_message
+        visible: root.vm.toast_visible
         font_size: "18sp"
         color: 1.0, 0.4, 0.3, 1
         size_hint_y: 0.06
-        opacity: 1 if root.vm.toast_visible else 0
 
     # ── 喝水按钮 ──
     Button:

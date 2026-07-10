@@ -99,7 +99,6 @@ class MainViewModel(EventDispatcher):
 
     def dismiss_toast(self) -> None:
         self.toast_visible = False
-        self.toast_message = ""
         if self._toast_handle is not None:
             self._toast_handle.cancel()
             self._toast_handle = None
