@@ -1,6 +1,10 @@
 """喝 水 啦 —— 儿童喝水养成游戏  Kivy App 入口"""
 
 import os
+from kivy.config import Config
+# 禁用触摸模拟红点/右键菜单
+Config.set('input', 'mouse', 'mouse,disable_multitouch')
+
 from kivy.app import App
 from kivy.core.text import LabelBase
 from kivy.lang import Builder
