@@ -5,7 +5,7 @@ import os
 import time
 
 from kivy.clock import Clock
-from kivy.graphics import Color, Instruction, Line, Mesh
+from kivy.graphics import Color, Mesh
 from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
 
@@ -91,12 +91,18 @@ class Companion3DWidget(Widget):
 
     # ── 3D→2D ──
     @staticmethod
-    def _proj(v, ay, ax):
+    def _rotate(v, ay, ax):
+        """仅旋转不投影，返回 (x,y,z) 用于法线计算."""
         x, y, z = v
         cy, sy = math.cos(ay), math.sin(ay)
         x, z = x*cy + z*sy, -x*sy + z*cy
         cx, sx = math.cos(ax), math.sin(ax)
         y, z = y*cx - z*sx, y*sx + z*cx
+        return x, y, z
+
+    @staticmethod
+    def _proj(v, ay, ax):
+        x, y, z = Companion3DWidget._rotate(v, ay, ax)
         s = 2.5 / max(z + 8.0, 0.1)
         return x*s, y*s, z
 
@@ -118,45 +124,51 @@ class Companion3DWidget(Widget):
         cx = ox + w/2; cy = oy + h/2 + self._bounce
         proj = [self._proj(v, ay, ax) for v in self._verts]
 
-        # ── 收集所有元素 (面 + 边)，按深度排序 ──
-        Element = tuple[float, str, int]  # (z, type, index)
-        elements: list[tuple[float, str, int]] = []
+        # ── 所有面，按深度排序 ──
+        elements: list[tuple[float, int, float]] = []  # (z, fi, bright)
+
+        # 光源 = 摄像机方向 (0, 0, 1) = 从正前方照来
+        Lx, Ly, Lz = 0.0, 0.0, 1.0
 
         for fi, face in enumerate(self._faces):
             z_avg = sum(proj[v][2] for v in face) / len(face)
-            elements.append((z_avg, "face", fi))
+            # 法线 (旋转后顶点)
+            p0 = self._rotate(self._verts[face[0]], ay, ax)
+            p1 = self._rotate(self._verts[face[1]], ay, ax)
+            p2 = self._rotate(self._verts[face[2]], ay, ax)
+            e1x, e1y, e1z = p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]
+            e2x, e2y, e2z = p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]
+            nx = e1y*e2z - e1z*e2y
+            ny = e1z*e2x - e1x*e2z
+            nz = e1x*e2y - e1y*e2x
+            nlen = math.sqrt(nx*nx + ny*ny + nz*nz)
+            ndotl = (nx*Lx + ny*Ly + nz*Lz) / max(nlen, 0.001)
+            # 双面光照: 环境0.3 + 漫反射abs(ndotl)*0.7
+            bright = 0.30 + abs(ndotl) * 0.70
+            elements.append((z_avg, fi, bright))
 
-        for ei, (a, b) in enumerate(self._edges):
-            z_avg = (proj[a][2] + proj[b][2]) / 2.0
-            elements.append((z_avg, "edge", ei))
-
-        elements.sort(key=lambda x: x[0], reverse=True)  # 远处先画(大z=远)
+        elements.sort(key=lambda x: x[0], reverse=True)
 
         # ── 重建 Canvas ──
         self.canvas.clear()
 
         with self.canvas:
-            for _, typ, idx in elements:
-                if typ == "face":
-                    face = self._faces[idx]
-                    v0, v1, v2 = proj[face[0]], proj[face[1]], proj[face[2]]
-                    Color(*self._body_rgb)
-                    Mesh(
-                        vertices=[
-                            v0[0]*sc+cx, v0[1]*sc+cy, 0, 0,
-                            v1[0]*sc+cx, v1[1]*sc+cy, 0, 0,
-                            v2[0]*sc+cx, v2[1]*sc+cy, 0, 0,
-                        ],
-                        indices=[0,1,2], mode="triangles",
-                    )
-                else:
-                    a, b = self._edges[idx]
-                    Color(*self._edge_rgb)
-                    Line(
-                        points=[proj[a][0]*sc+cx, proj[a][1]*sc+cy,
-                                proj[b][0]*sc+cx, proj[b][1]*sc+cy],
-                        width=max(1.0, sc*0.015),
-                    )
+            for _, fi, bright in elements:
+                face = self._faces[fi]
+                v0, v1, v2 = proj[face[0]], proj[face[1]], proj[face[2]]
+                # 面颜色 = 基础色 × 亮度 (后续可从OBJ材质读取基础色)
+                r = self._body_rgb[0] * bright
+                g = self._body_rgb[1] * bright
+                b = self._body_rgb[2] * bright
+                Color(r, g, b)
+                Mesh(
+                    vertices=[
+                        v0[0]*sc+cx, v0[1]*sc+cy, 0, 0,
+                        v1[0]*sc+cx, v1[1]*sc+cy, 0, 0,
+                        v2[0]*sc+cx, v2[1]*sc+cy, 0, 0,
+                    ],
+                    indices=[0,1,2], mode="triangles",
+                )
 
     # ── 触控 ──
     def on_touch_down(self, touch):
