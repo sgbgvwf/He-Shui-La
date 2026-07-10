@@ -77,7 +77,7 @@ class ProgressStars(Widget):
 
         w = self.width
         total_w = n * _SPACING
-        start_x = self.x + (w - total_w) / 2.0 - 30
+        start_x = self.x + 40
         cy = self.y + self.height / 2.0
 
         # pre-compute shape once (all stars identical)
