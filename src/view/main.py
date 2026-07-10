@@ -12,6 +12,7 @@ from src.viewmodel.main_viewmodel import MainViewModel
 
 KV_PATH = "src/view/main_screen.kv"
 SETTINGS_KV_PATH = "src/view/settings_dialog.kv"
+ACHIEVEMENT_KV_PATH = "src/view/achievement_screen.kv"
 
 # ── 注册中文字体 ──
 _FONT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,6 +57,38 @@ class SettingsPopup(Popup):
             app.root.on_settings_saved()
 
 
+class AchievementPopup(Popup):
+    """Sticker-collection popup — grid of achievement cards."""
+    ach_vm = ObjectProperty(None)
+
+    def on_open(self) -> None:
+        """Build sticker grid from AchievementViewModel cards."""
+        from kivy.uix.button import Button
+        grid = self.ids.sticker_grid
+        grid.clear_widgets()
+        for card in self.ach_vm.cards:
+            if card["unlocked"]:
+                bg = (0.35, 0.7, 0.35, 1)
+                text = f"{card['name']}\n{card['description']}"
+            else:
+                bg = (0.6, 0.6, 0.6, 1)
+                text = "?\n---"
+            btn = Button(
+                font_name="ChineseHei",
+                text=text,
+                font_size="14sp",
+                halign="center",
+                valign="middle",
+                background_normal="",
+                background_color=bg,
+                color=(1, 1, 1, 1),
+                size_hint_y=None,
+                height="90sp",
+            )
+            btn.bind(size=btn.setter('text_size'))
+            grid.add_widget(btn)
+
+
 class MainScreen(BoxLayout):
     """Root widget; ViewModel injected by App."""
 
@@ -70,6 +103,13 @@ class MainScreen(BoxLayout):
         verify = VerifyPopup(settings_vm=svm)
         verify.open()
 
+    def open_achievements(self) -> None:
+        """Open the sticker collection popup."""
+        from src.viewmodel.achievement_viewmodel import AchievementViewModel
+        avm = AchievementViewModel(self.vm.achievement_manager)
+        popup = AchievementPopup(ach_vm=avm)
+        popup.open()
+
     def on_settings_saved(self) -> None:
         """Called after settings are saved — flush state, then reload config."""
         self.vm.save_state()
@@ -81,6 +121,7 @@ class DrinkLaApp(App):
 
     def build(self):
         Builder.load_file(SETTINGS_KV_PATH)
+        Builder.load_file(ACHIEVEMENT_KV_PATH)
         Builder.load_file(KV_PATH)
         self.vm = MainViewModel()
         self.vm.load_state(self.user_data_dir)

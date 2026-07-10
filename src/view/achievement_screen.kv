@@ -1,0 +1,42 @@
+#:kivy 2.2
+# 喝水啦 — 贴纸册界面 (成就收集)
+
+<AchievementPopup>:
+    title: ""
+    title_size: 0
+    size_hint: (0.9, 0.72)
+    auto_dismiss: True
+    BoxLayout:
+        orientation: "vertical"
+        padding: 16
+        spacing: 12
+
+        # ── 标题 ──
+        Label:
+            font_name: "ChineseHei"
+            text: "贴纸册  (" + str(root.ach_vm.unlocked_count) + "/" + str(root.ach_vm.total_count) + ")"
+            font_size: "24sp"
+            bold: True
+            size_hint_y: None
+            height: "40sp"
+            halign: "center"
+
+        # ── 贴纸网格 ──
+        ScrollView:
+            GridLayout:
+                id: sticker_grid
+                cols: 2
+                spacing: 14
+                padding: 8
+                size_hint_y: None
+                height: self.minimum_height
+
+        # ── 关闭 ──
+        Button:
+            font_name: "ChineseHei"
+            text: "关闭"
+            font_size: "16sp"
+            background_color: 0.7, 0.7, 0.7, 1
+            size_hint_y: None
+            height: "44sp"
+            on_release: root.dismiss()

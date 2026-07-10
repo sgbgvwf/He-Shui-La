@@ -46,6 +46,7 @@ class TestGameStateRoundTrip:
                 "streak_days": 2,
                 "today_target_completed": True,
             },
+            "achievement": {"unlocked": [], "total_cups": 0},
         }
         save_game_state(d, state)
         loaded = load_game_state(d)

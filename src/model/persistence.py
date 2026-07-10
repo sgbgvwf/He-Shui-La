@@ -45,6 +45,10 @@ def _default_game_state() -> dict:
             "streak_days": 0,
             "today_target_completed": False,
         },
+        "achievement": {
+            "unlocked": [],
+            "total_cups": 0,
+        },
     }
 
 

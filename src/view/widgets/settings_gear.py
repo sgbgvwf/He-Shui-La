@@ -1,17 +1,27 @@
-"""Settings gear icon — canvas-drawn, not font-dependent."""
+"""Settings gear icon — canvas-drawn, self-contained touch handling."""
 
 from math import cos, sin, pi
 
+from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Ellipse
 
 
 class SettingsGear(Widget):
-    """Simple gear icon drawn with canvas primitives (8-tooth cog)."""
+    """Tappable gear icon (8-tooth cog), canvas-drawn."""
+
+    callback = ObjectProperty(None)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.bind(pos=self._draw, size=self._draw)
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            if self.callback:
+                self.callback()
+            return True
+        return False
 
     def _draw(self, *args):
         self.canvas.clear()
@@ -24,7 +34,6 @@ class SettingsGear(Widget):
         hole_r = body_r * 0.42
 
         with self.canvas:
-            # ── 8 teeth (small circles around perimeter) ──
             Color(0.45, 0.45, 0.45, 1)
             for i in range(8):
                 angle = i * pi / 4.0
@@ -32,13 +41,11 @@ class SettingsGear(Widget):
                 ty = cy + r * 0.82 * sin(angle) - tooth_r
                 Ellipse(pos=(tx, ty), size=(tooth_r * 2, tooth_r * 2))
 
-            # ── main body ──
             Ellipse(
                 pos=(cx - body_r, cy - body_r),
                 size=(body_r * 2, body_r * 2),
             )
 
-            # ── inner hole (cutout) ──
             Color(0.95, 0.95, 1.0, 1)
             Ellipse(
                 pos=(cx - hole_r, cy - hole_r),

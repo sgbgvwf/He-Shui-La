@@ -3,6 +3,7 @@
 #:import ProgressStars src.view.widgets.progress_stars.ProgressStars
 #:import StreakFire src.view.widgets.streak_fire.StreakFire
 #:import SettingsGear src.view.widgets.settings_gear.SettingsGear
+#:import StickerIcon src.view.widgets.sticker_icon.StickerIcon
 # 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
 
 <MainScreen>:
@@ -33,18 +34,19 @@
                 bold: True
                 color: 0.2, 0.5, 0.9, 1
 
-            FloatLayout:
+            BoxLayout:
+                orientation: "horizontal"
                 size_hint_x: None
-                width: 44
+                width: "88sp"
+                spacing: "6sp"
+
+                StickerIcon:
+                    size_hint_x: 1
+                    callback: root.open_achievements
 
                 SettingsGear:
-                    size_hint: (1, 1)
-
-                Button:
-                    size_hint: (1, 1)
-                    background_normal: ""
-                    background_color: 0, 0, 0, 0
-                    on_release: root.open_settings()
+                    size_hint_x: 1
+                    callback: root.open_settings
 
         Label:
             font_name: "ChineseHei"
