@@ -39,7 +39,13 @@ class TestGameStateRoundTrip:
         state = {
             "version": SCHEMA_VERSION,
             "companion": {"name": "测试", "hydration": 73.5, "exp": 42, "level": 2},
-            "anticheat": {"last_drink_time": 123.45, "today_cups": 3, "last_date": "2026-07-09"},
+            "anticheat": {"last_drink_time": 123.45},
+            "daily_tracker": {
+                "today_cups": 3,
+                "last_date": "2026-07-09",
+                "streak_days": 2,
+                "today_target_completed": True,
+            },
         }
         save_game_state(d, state)
         loaded = load_game_state(d)
@@ -90,7 +96,8 @@ class TestGameStateRoundTrip:
         assert loaded["companion"]["level"] == 3
         # missing keys filled
         assert loaded["companion"]["hydration"] == 100.0
-        assert loaded["anticheat"]["today_cups"] == 0
+        assert loaded["daily_tracker"]["today_cups"] == 0
+        assert loaded["daily_tracker"]["streak_days"] == 0
 
 
 class TestUserConfigRoundTrip:
@@ -140,12 +147,13 @@ class TestModelIntegration:
     def test_anticheat_state_survives_save_load(self, tmp_path):
         d = str(tmp_path)
         ac = AntiCheat(cooldown_seconds=300, daily_max_cups=15)
-        ac.record()  # sets _last_drink_time and _today_cups
+        ac.record()
         ac.record()
         save_game_state(d, {
             "version": SCHEMA_VERSION,
             "companion": {},
             "anticheat": ac.to_dict(),
+            "daily_tracker": _default_game_state()["daily_tracker"],
         })
 
         loaded = load_game_state(d)
@@ -154,6 +162,44 @@ class TestModelIntegration:
             cooldown_seconds=300,
             daily_max_cups=15,
         )
-        assert restored.today_cups == 2
         assert restored._last_drink_time == pytest.approx(ac._last_drink_time, abs=1.0)
-        assert restored._last_date == ac._last_date
+
+    def test_daily_tracker_state_survives_save_load(self, tmp_path):
+        from src.model.daily_tracker import DailyTracker
+        d = str(tmp_path)
+        dt = DailyTracker(daily_target=8)
+        dt.record()  # today_cups=1, streak=1
+        dt.record()  # today_cups=2, streak still 1
+        save_game_state(d, {
+            "version": SCHEMA_VERSION,
+            "companion": {},
+            "anticheat": {},
+            "daily_tracker": dt.to_dict(),
+        })
+
+        loaded = load_game_state(d)
+        restored = DailyTracker.from_dict(
+            loaded["daily_tracker"],
+            daily_target=8,
+        )
+        assert restored.today_cups == 2
+        assert restored.streak_days == 1
+
+    def test_backward_compat_migrates_from_anticheat(self, tmp_path):
+        """Old saves without daily_tracker section should migrate."""
+        d = str(tmp_path)
+        # write old-format state (today_cups inside anticheat)
+        with open(os.path.join(d, GAME_STATE_FILE), "w", encoding="utf-8") as f:
+            json.dump({
+                "version": SCHEMA_VERSION,
+                "companion": {"level": 1},
+                "anticheat": {
+                    "last_drink_time": 999.0,
+                    "today_cups": 7,
+                    "last_date": "2026-07-08",
+                },
+            }, f)
+        loaded = load_game_state(d)
+        assert loaded["daily_tracker"]["today_cups"] == 7
+        assert loaded["daily_tracker"]["last_date"] == "2026-07-08"
+        assert loaded["daily_tracker"]["streak_days"] == 0  # conservative default

@@ -6,6 +6,7 @@ from kivy.clock import Clock
 
 from src.model.companion import Companion
 from src.model.anti_cheat import AntiCheat
+from src.model.daily_tracker import DailyTracker
 
 
 class MainViewModel(EventDispatcher):
@@ -35,6 +36,7 @@ class MainViewModel(EventDispatcher):
         self.data_dir = data_dir
         self.companion = Companion()
         self.anticheat = AntiCheat()
+        self.daily_tracker = DailyTracker()
         self._save_handle = None
         self._toast_handle = None
 
@@ -48,19 +50,34 @@ class MainViewModel(EventDispatcher):
 
     def drink_water(self) -> None:
         """Handle drink button press."""
-        self.anticheat.reset_if_new_day()
-        allowed, reason = self.anticheat.can_drink()
+        self.daily_tracker.reset_if_new_day()
+        allowed, reason = self.anticheat.can_drink(self.daily_tracker.today_cups)
 
         if not allowed:
             self._show_toast(reason)
             return
 
-        result = self.companion.drink()
+        companion_result = self.companion.drink()
+        tracker_result = self.daily_tracker.record()
         self.anticheat.record()
         self._sync_from_model()
         self._schedule_autosave()
 
-        if result.get("leveled_up"):
+        # Toast priority: target-completion > companion level-up > generic
+        if tracker_result.get("target_just_completed"):
+            bonus_result = self.companion.award_exp(20)
+            self._sync_from_model()
+            if bonus_result.get("leveled_up"):
+                stage = self.companion.evolution_stage
+                self._show_toast(
+                    f"每日目标达成！连击 {tracker_result['streak_days']} 天！"
+                    f" 升级到 {stage}！"
+                )
+            else:
+                self._show_toast(
+                    f"每日目标达成！连击 {tracker_result['streak_days']} 天！"
+                )
+        elif companion_result.get("leveled_up"):
             stage = self.companion.evolution_stage
             self._show_toast(f"升级了！进化到 {stage}！")
         else:
@@ -103,6 +120,11 @@ class MainViewModel(EventDispatcher):
             daily_max_cups=config["daily_max_cups"],
         )
 
+        self.daily_tracker = DailyTracker.from_dict(
+            state["daily_tracker"],
+            daily_target=config.get("target_cups", 8),
+        )
+
         self._sync_from_model()
 
     def save_state(self, data_dir: str | None = None) -> None:
@@ -116,6 +138,7 @@ class MainViewModel(EventDispatcher):
             "version": 1,
             "companion": self.companion.to_dict(),
             "anticheat": self.anticheat.to_dict(),
+            "daily_tracker": self.daily_tracker.to_dict(),
         })
         save_user_config(target, {
             "version": 1,
@@ -143,7 +166,7 @@ class MainViewModel(EventDispatcher):
 
     def _tick(self, dt: float) -> None:
         """Periodic decay + cross-day check."""
-        self.anticheat.reset_if_new_day()
+        self.daily_tracker.reset_if_new_day()
         self.companion.tick()
         self._sync_from_model()
         self._schedule_autosave()
@@ -156,8 +179,10 @@ class MainViewModel(EventDispatcher):
         self.level = c.level
         self.exp = c.exp
         self.evolution_stage = c.evolution_stage
-        self.today_cups = self.anticheat.today_cups
-        self.button_disabled = not self.anticheat.can_drink()[0]
+        self.today_cups = self.daily_tracker.today_cups
+        self.button_disabled = not self.anticheat.can_drink(
+            self.daily_tracker.today_cups
+        )[0]
 
     def _show_toast(self, msg: str) -> None:
         # cancel any pending dismiss before showing a new message

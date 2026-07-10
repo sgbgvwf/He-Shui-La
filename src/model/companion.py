@@ -57,6 +57,17 @@ class Companion:
             "new_level": self._level,
         }
 
+    def award_exp(self, amount: int) -> dict:
+        """Award bonus EXP (e.g. daily target) and recalculate level."""
+        prev_level = self._level
+        self._exp += amount
+        self._level = 1 + self._exp // 100
+        return {
+            "exp_gained": amount,
+            "leveled_up": self._level > prev_level,
+            "new_level": self._level,
+        }
+
     def tick(self) -> None:
         """Natural hydration decay — call every N seconds."""
         self._hydration = max(0.0, self._hydration - 1)

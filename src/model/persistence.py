@@ -38,8 +38,12 @@ def _default_game_state() -> dict:
         },
         "anticheat": {
             "last_drink_time": 0.0,
+        },
+        "daily_tracker": {
             "today_cups": 0,
             "last_date": "",
+            "streak_days": 0,
+            "today_target_completed": False,
         },
     }
 
@@ -113,12 +117,26 @@ def save_game_state(data_dir: str, state: dict) -> None:
 
 
 def load_game_state(data_dir: str) -> dict:
-    """Return persisted state merged with defaults (recursively)."""
+    """Return persisted state merged with defaults (recursively).
+
+    Includes backward-compat migration for saves that pre-date the
+    ``daily_tracker`` section (when ``today_cups`` lived inside ``anticheat``).
+    """
     path = os.path.join(data_dir, GAME_STATE_FILE)
     loaded = _load_json(path)
     if loaded is None:
         return _default_game_state()
-    return _deep_merge(_default_game_state(), loaded)
+
+    merged = _deep_merge(_default_game_state(), loaded)
+
+    # ── backward compat: migrate today_cups/last_date from anticheat → daily_tracker
+    if "daily_tracker" not in loaded:
+        old_ac = loaded.get("anticheat", {})
+        merged["daily_tracker"]["today_cups"] = int(old_ac.get("today_cups", 0))
+        merged["daily_tracker"]["last_date"] = str(old_ac.get("last_date", ""))
+        # streak starts at 0 for migrated saves (conservative — won't inflate)
+
+    return merged
 
 
 # ── user_config ─────────────────────────────────────────────────────

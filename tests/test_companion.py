@@ -67,6 +67,26 @@ class TestCompanion:
         c._hydration = 15
         assert c.is_hydrated is False
 
+    def test_award_exp_adds_and_recalculates_level(self):
+        c = Companion()
+        c._exp = 95
+        c._level = 1
+        result = c.award_exp(20)
+        assert c.exp == 115
+        assert c.level == 2
+        assert result["leveled_up"] is True
+        assert result["new_level"] == 2
+        assert result["exp_gained"] == 20
+
+    def test_award_exp_no_level_up(self):
+        c = Companion()
+        c._exp = 50
+        c._level = 1
+        result = c.award_exp(20)
+        assert c.exp == 70
+        assert c.level == 1
+        assert result["leveled_up"] is False
+
     def test_to_dict_and_from_dict(self):
         c = Companion(name="测试水滴")
         c._hydration = 80.0
