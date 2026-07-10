@@ -8,6 +8,7 @@ from src.model.companion import Companion
 from src.model.anti_cheat import AntiCheat
 from src.model.daily_tracker import DailyTracker
 from src.model.config import GameConfig
+from src.model.achievement import AchievementManager
 
 
 class MainViewModel(EventDispatcher):
@@ -41,6 +42,7 @@ class MainViewModel(EventDispatcher):
             daily_target=self.config.daily_target,
             streak_bonus_table=self.config.streak_bonus_table,
         )
+        self.achievement_manager = AchievementManager()
         self._save_handle = None
         self._toast_handle = None
 
@@ -63,8 +65,16 @@ class MainViewModel(EventDispatcher):
         companion_result = self.companion.drink(streak_bonus=bonus)
         tracker_result = self.daily_tracker.record()
         self.anticheat.record()
+        self.achievement_manager.total_cups += 1
         self._sync_from_model()
         self._schedule_autosave()
+
+        # achievement check (run before toast so we can append to the message)
+        new_ach = self.achievement_manager.check(self.companion, self.daily_tracker)
+        ach_suffix = ""
+        if new_ach:
+            names = "、".join(a.name for a in new_ach)
+            ach_suffix = f"\n获得新贴纸：{names}！"
 
         if tracker_result.get("target_just_completed"):
             bonus_result = self.companion.award_exp(
@@ -75,17 +85,17 @@ class MainViewModel(EventDispatcher):
                 stage = self.companion.evolution_stage
                 self._show_toast(
                     f"每日目标达成！连击 {tracker_result['streak_days']} 天！"
-                    f" 升级到 {stage}！"
+                    f" 升级到 {stage}！{ach_suffix}"
                 )
             else:
                 self._show_toast(
-                    f"每日目标达成！连击 {tracker_result['streak_days']} 天！"
+                    f"每日目标达成！连击 {tracker_result['streak_days']} 天！{ach_suffix}"
                 )
         elif companion_result.get("leveled_up"):
             stage = self.companion.evolution_stage
-            self._show_toast(f"升级了！进化到 {stage}！")
+            self._show_toast(f"升级了！进化到 {stage}！{ach_suffix}")
         else:
-            self._show_toast("咕噜咕噜～ 真好喝！")
+            self._show_toast(f"咕噜咕噜～ 真好喝！{ach_suffix}")
 
     def dismiss_toast(self) -> None:
         self.toast_visible = False
@@ -131,6 +141,10 @@ class MainViewModel(EventDispatcher):
             streak_bonus_table=self.config.streak_bonus_table,
         )
 
+        self.achievement_manager = AchievementManager.from_dict(
+            state.get("achievement", {}),
+        )
+
         self._sync_from_model()
 
     def save_state(self, data_dir: str | None = None) -> None:
@@ -145,6 +159,7 @@ class MainViewModel(EventDispatcher):
             "companion": self.companion.to_dict(),
             "anticheat": self.anticheat.to_dict(),
             "daily_tracker": self.daily_tracker.to_dict(),
+            "achievement": self.achievement_manager.to_dict(),
         })
         save_user_config(target, {
             "version": 1,
