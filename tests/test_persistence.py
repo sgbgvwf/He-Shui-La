@@ -103,14 +103,14 @@ class TestGameStateRoundTrip:
 class TestUserConfigRoundTrip:
     def test_save_load_round_trip(self, tmp_path):
         d = str(tmp_path)
-        cfg = {
-            "version": SCHEMA_VERSION,
+        cfg = _default_user_config()
+        cfg.update({
             "target_cups": 10,
             "cooldown_seconds": 120,
             "daily_max_cups": 20,
             "sound_enabled": False,
             "partner_name": "豆豆",
-        }
+        })
         save_user_config(d, cfg)
         loaded = load_user_config(d)
         assert loaded == cfg

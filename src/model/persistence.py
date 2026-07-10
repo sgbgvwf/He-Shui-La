@@ -51,9 +51,25 @@ def _default_game_state() -> dict:
 def _default_user_config() -> dict:
     return {
         "version": SCHEMA_VERSION,
+        # ── DailyTracker ──
         "target_cups": 8,
+        "target_reward_exp": 20,
+        "streak_bonus_table": [[3, 0.10], [7, 0.20], [15, 0.30], [30, 0.50]],
+        # ── AntiCheat ──
         "cooldown_seconds": 300,
         "daily_max_cups": 15,
+        # ── Companion ──
+        "hydration_per_drink": 20.0,
+        "hydration_max": 100.0,
+        "hydration_low_threshold": 20.0,
+        "exp_per_drink": 10,
+        "exp_per_level": 100,
+        "decay_per_tick": 1.0,
+        # ── ViewModel ──
+        "decay_interval_seconds": 3.0,
+        "autosave_debounce_seconds": 2.0,
+        "toast_duration_seconds": 2.5,
+        # ── User-facing ──
         "sound_enabled": True,
         "partner_name": "小水滴",
     }

@@ -7,6 +7,7 @@ from kivy.clock import Clock
 from src.model.companion import Companion
 from src.model.anti_cheat import AntiCheat
 from src.model.daily_tracker import DailyTracker
+from src.model.config import GameConfig
 
 
 class MainViewModel(EventDispatcher):
@@ -26,24 +27,24 @@ class MainViewModel(EventDispatcher):
     toast_message = StringProperty("")
     toast_visible = BooleanProperty(False)
 
-    # decay every 3 seconds
-    DECAY_INTERVAL = 3.0
-    # debounce autosave window
-    AUTOSAVE_DEBOUNCE_SECONDS = 2.0
-
     def __init__(self, data_dir: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self.data_dir = data_dir
-        self.companion = Companion()
-        self.anticheat = AntiCheat()
-        self.daily_tracker = DailyTracker()
+        self.config = GameConfig()
+
+        self.companion = self._make_companion(self.config)
+        self.anticheat = AntiCheat(
+            cooldown_seconds=self.config.cooldown_seconds,
+            daily_max_cups=self.config.daily_max_cups,
+        )
+        self.daily_tracker = DailyTracker(
+            daily_target=self.config.daily_target,
+            streak_bonus_table=self.config.streak_bonus_table,
+        )
         self._save_handle = None
         self._toast_handle = None
 
-        # start decay clock
-        Clock.schedule_interval(self._tick, self.DECAY_INTERVAL)
-
-        # sync initial state
+        Clock.schedule_interval(self._tick, self.config.decay_interval_seconds)
         self._sync_from_model()
 
     # ── commands ────────────────────────────────────────────────
@@ -65,9 +66,10 @@ class MainViewModel(EventDispatcher):
         self._sync_from_model()
         self._schedule_autosave()
 
-        # Toast priority: target-completion > companion level-up > generic
         if tracker_result.get("target_just_completed"):
-            bonus_result = self.companion.award_exp(20, streak_bonus=bonus)
+            bonus_result = self.companion.award_exp(
+                self.config.target_reward_exp, streak_bonus=bonus
+            )
             self._sync_from_model()
             if bonus_result.get("leveled_up"):
                 stage = self.companion.evolution_stage
@@ -104,13 +106,14 @@ class MainViewModel(EventDispatcher):
         self.data_dir = data_dir
         ensure_data_dir(data_dir)
 
-        config = load_user_config(data_dir)
+        raw_config = load_user_config(data_dir)
+        self.config = GameConfig.from_user_config(raw_config)
 
-        # build state with settings from user_config
         state = load_game_state(data_dir)
 
-        self.companion = Companion(
-            name=config.get("partner_name", state["companion"].get("name", "小水滴"))
+        self.companion = self._make_companion(
+            self.config,
+            name=self.config.partner_name,
         )
         self.companion._hydration = state["companion"].get("hydration", 100.0)
         self.companion._exp = state["companion"].get("exp", 0)
@@ -118,13 +121,14 @@ class MainViewModel(EventDispatcher):
 
         self.anticheat = AntiCheat.from_dict(
             state["anticheat"],
-            cooldown_seconds=config["cooldown_seconds"],
-            daily_max_cups=config["daily_max_cups"],
+            cooldown_seconds=self.config.cooldown_seconds,
+            daily_max_cups=self.config.daily_max_cups,
         )
 
         self.daily_tracker = DailyTracker.from_dict(
             state["daily_tracker"],
-            daily_target=config.get("target_cups", 8),
+            daily_target=self.config.daily_target,
+            streak_bonus_table=self.config.streak_bonus_table,
         )
 
         self._sync_from_model()
@@ -144,27 +148,39 @@ class MainViewModel(EventDispatcher):
         })
         save_user_config(target, {
             "version": 1,
-            "target_cups": 8,  # placeholder; P1 settings screen will own this
-            "cooldown_seconds": self.anticheat.cooldown_seconds,
-            "daily_max_cups": self.anticheat.daily_max_cups,
-            "sound_enabled": True,
-            "partner_name": self.companion.name,
+            "target_cups": self.config.daily_target,
+            "cooldown_seconds": self.config.cooldown_seconds,
+            "daily_max_cups": self.config.daily_max_cups,
+            "sound_enabled": self.config.sound_enabled,
+            "partner_name": self.config.partner_name,
         })
 
-        # cancel any pending debounced save (we just wrote synchronously)
         if self._save_handle is not None:
             self._save_handle.cancel()
             self._save_handle = None
 
     def _schedule_autosave(self) -> None:
-        """Debounce 2s after a drink; on_stop/on_pause force final save."""
         if self._save_handle is not None:
             self._save_handle.cancel()
         self._save_handle = Clock.schedule_once(
-            lambda _dt: self.save_state(), self.AUTOSAVE_DEBOUNCE_SECONDS
+            lambda _dt: self.save_state(),
+            self.config.autosave_debounce_seconds,
         )
 
     # ── internal ────────────────────────────────────────────────
+
+    @staticmethod
+    def _make_companion(config: GameConfig, name: str | None = None) -> Companion:
+        """Build a Companion from config values."""
+        return Companion(
+            name=name or config.partner_name,
+            hydration_max=config.hydration_max,
+            hydration_per_drink=config.hydration_per_drink,
+            hydration_low_threshold=config.hydration_low_threshold,
+            exp_per_drink=config.exp_per_drink,
+            exp_per_level=config.exp_per_level,
+            decay_per_tick=config.decay_per_tick,
+        )
 
     def _tick(self, dt: float) -> None:
         """Periodic decay + cross-day check."""
@@ -177,7 +193,7 @@ class MainViewModel(EventDispatcher):
         """Push model state into observable properties."""
         c = self.companion
         self.hydration = c.hydration
-        self.hydration_norm = c.hydration / 100.0
+        self.hydration_norm = c.hydration / self.config.hydration_max
         self.level = c.level
         self.exp = c.exp
         self.evolution_stage = c.evolution_stage
@@ -187,11 +203,11 @@ class MainViewModel(EventDispatcher):
         )[0]
 
     def _show_toast(self, msg: str) -> None:
-        # cancel any pending dismiss before showing a new message
         if self._toast_handle is not None:
             self._toast_handle.cancel()
         self.toast_message = msg
         self.toast_visible = True
         self._toast_handle = Clock.schedule_once(
-            lambda _dt: self.dismiss_toast(), 2.5
+            lambda _dt: self.dismiss_toast(),
+            self.config.toast_duration_seconds,
         )
