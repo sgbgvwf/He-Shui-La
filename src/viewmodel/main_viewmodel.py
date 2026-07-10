@@ -43,6 +43,7 @@ class MainViewModel(EventDispatcher):
             streak_bonus_table=self.config.streak_bonus_table,
         )
         self.achievement_manager = AchievementManager()
+        self._sound_manager = None  # set by App after construction
         self._save_handle = None
         self._toast_handle = None
 
@@ -75,14 +76,19 @@ class MainViewModel(EventDispatcher):
         if new_ach:
             names = "、".join(a.name for a in new_ach)
             ach_suffix = f"\n获得新贴纸：{names}！"
+            self._play_sound("achievement")
+
+        leveled_up = companion_result.get("leveled_up")
 
         if tracker_result.get("target_just_completed"):
+            self._play_sound("target")
             bonus_result = self.companion.award_exp(
                 self.config.target_reward_exp, streak_bonus=bonus
             )
             self._sync_from_model()
-            if bonus_result.get("leveled_up"):
+            if bonus_result.get("leveled_up") or leveled_up:
                 stage = self.companion.evolution_stage
+                self._play_sound("levelup")
                 self._show_toast(
                     f"每日目标达成！连击 {tracker_result['streak_days']} 天！"
                     f" 升级到 {stage}！{ach_suffix}"
@@ -91,10 +97,12 @@ class MainViewModel(EventDispatcher):
                 self._show_toast(
                     f"每日目标达成！连击 {tracker_result['streak_days']} 天！{ach_suffix}"
                 )
-        elif companion_result.get("leveled_up"):
+        elif leveled_up:
+            self._play_sound("levelup")
             stage = self.companion.evolution_stage
             self._show_toast(f"升级了！进化到 {stage}！{ach_suffix}")
         else:
+            self._play_sound("drink")
             self._show_toast(f"咕噜咕噜～ 真好喝！{ach_suffix}")
 
     def dismiss_toast(self) -> None:
@@ -144,6 +152,9 @@ class MainViewModel(EventDispatcher):
             state.get("achievement", {}),
         )
 
+        if self._sound_manager is not None:
+            self._sound_manager.enabled = self.config.sound_enabled
+
         self._sync_from_model()
 
     def save_state(self, data_dir: str | None = None) -> None:
@@ -186,10 +197,18 @@ class MainViewModel(EventDispatcher):
             self._save_handle.cancel()
             self._save_handle = None
 
+    def set_sound_manager(self, mgr) -> None:
+        """Inject the SoundManager (called from App after construction)."""
+        self._sound_manager = mgr
+
     def reload_config(self) -> None:
         """Reload config + state from disk. Called after settings changed."""
         if self.data_dir:
             self.load_state(self.data_dir)
+
+    def _play_sound(self, name: str) -> None:
+        if self._sound_manager is not None:
+            self._sound_manager.play(name)
 
     def _schedule_autosave(self) -> None:
         if self._save_handle is not None:
