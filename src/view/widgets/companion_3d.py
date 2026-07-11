@@ -319,13 +319,18 @@ class Companion3DWidget(Widget):
         self._rect.pos = (ox, oy); self._rect.size = (w, h)
         if len(self._companions) <= 1: return
         r = min(w, h) * 0.06
-        # ── 触发按钮 (右上角) ──
-        bx, by = ox + w - r*2 - 6, oy + h - r*2 - 6
-        self._btn_circle.pos = (bx - r*0.2, by - r*0.2)
-        self._btn_circle.size = (r*2.4, r*2.4)
-        d = r * 0.3; cx, cy = bx + r, by + r
-        self._btn_lines.points = [cx-d, cy+d, cx, cy+d*0.3, cx+d, cy+d,
-                                   cx-d, cy-d, cx, cy-d*0.3, cx+d, cy-d]
+        # ── 触发按钮 (右上角, 始终可见) ──
+        br = r * 1.3
+        bx, by = ox + w - br*2 - 4, oy + h - br*2 - 4
+        self._btn_circle.pos = (bx, by)
+        self._btn_circle.size = (br*2, br*2)
+        # ↕ 图标: 上下两个箭头
+        cx, cy = bx + br, by + br
+        s = br * 0.35
+        self._btn_lines.points = [
+            cx-s, cy+s, cx, cy+s*0.4, cx+s, cy+s,  # 上箭头
+            cx-s, cy-s, cx, cy-s*0.4, cx+s, cy-s,  # 下箭头
+        ]
         # ── 左右箭头 (仅在选择模式时显示) ──
         if self._arrows_visible:
             lx, ly = ox + 8, oy + h/2 - r
@@ -353,14 +358,13 @@ class Companion3DWidget(Widget):
             self._arrows_visible = not self._arrows_visible
             self._update_arrow_visibility()
             return True
-        # 2. 左右箭头 (仅在可见时响应)
+        # 2. 左右箭头 (仅在可见时响应, 不退出模式)
         if self._arrows_visible:
             if self._hit_circle(touch, self._la_circle):
-                self._prev_companion(); self._arrows_visible = False; self._update_arrow_visibility(); return True
+                self._prev_companion(); return True
             if self._hit_circle(touch, self._ra_circle):
-                self._next_companion(); self._arrows_visible = False; self._update_arrow_visibility(); return True
-        # 3. 自动收起箭头
-        if self._arrows_visible:
+                self._next_companion(); return True
+            # 点击非箭头区域 → 退出选择模式
             self._arrows_visible = False; self._update_arrow_visibility()
         touch.grab(self); self._dragging = True
         self._last_t = touch.pos; return True
