@@ -5,7 +5,7 @@
 #:import SettingsGear src.view.widgets.settings_gear.SettingsGear
 #:import StickerIcon src.view.widgets.sticker_icon.StickerIcon
 #:import Toast src.view.widgets.toast.Toast
-# 喝水啦 — 主界面布局 (子供向：超大按钮、明亮色彩)
+# 喝水啦 — 主界面布局
 
 <MainScreen>:
     orientation: "vertical"
@@ -13,103 +13,62 @@
     spacing: 20
     canvas.before:
         Color:
-            rgba: 0.95, 0.95, 1.0, 1   # 浅蓝白背景
+            rgba: 0.95, 0.95, 1.0, 1
         Rectangle:
             pos: self.pos
             size: self.size
 
-    # ── 形态 ──
-    Label:
-        font_name: "ChineseHei"
-        text: "💧 " + root.vm.evolution_stage
-        font_size: "28sp"
-        bold: True
-        color: 0.2, 0.5, 0.9, 1
-        size_hint_y: 0.08
+    # ── 顶栏: 形态 + 图标 ──
+    BoxLayout:
+        size_hint_y: 0.10
+        orientation: "horizontal"
 
-    # ── 3D 伙伴模型 (伙伴列表在 main.py 中配置) ──
-    Companion3DWidget:
-        id: companion_3d
-        viewmodel: root.vm
-        size_hint_y: 0.45
+        Label:
+            font_name: "ChineseHei"
+            text: "💧 " + root.vm.evolution_stage
+            font_size: "28sp"
+            bold: True
+            color: 0.2, 0.5, 0.9, 1
 
-    # ── 喝水数 ──
-    Label:
-        font_name: "ChineseHei"
-        text: "Lv." + str(root.vm.level) + "  已喝 " + str(root.vm.today_cups) + " 杯"
-        font_size: "18sp"
-        color: 0.3, 0.3, 0.3, 1
-        size_hint_y: 0.06
         BoxLayout:
             orientation: "horizontal"
-            size_hint_y: 0.5
+            size_hint_x: None
+            width: "88sp"
+            spacing: "6sp"
 
-            Label:
-                font_name: "ChineseHei"
-                text: "💧 " + root.vm.evolution_stage
-                font_size: "28sp"
-                bold: True
-                color: 0.2, 0.5, 0.9, 1
+            StickerIcon:
+                size_hint_x: 1
+                callback: root.open_achievements
 
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_x: None
-                width: "88sp"
-                spacing: "6sp"
-
-                StickerIcon:
-                    size_hint_x: 1
-                    callback: root.open_achievements
-
-                SettingsGear:
-                    size_hint_x: 1
-                    callback: root.open_settings
-
-        Label:
-            font_name: "ChineseHei"
-            text: "Lv." + str(root.vm.level) + "  已喝 " + str(root.vm.today_cups) + " 杯"
-            font_size: "18sp"
-            color: 0.3, 0.3, 0.3, 1
-            size_hint_y: 0.5
-
-    # ── 连续天数火焰 ──
-    StreakFire:
-        id: streak_fire
-        viewmodel: root.vm
-        size_hint_y: 0.08
-
-    # ── 水分值进度条 ──
-    BoxLayout:
-        size_hint_y: 0.08
-        orientation: "vertical"
-        spacing: 4
-
-        Label:
-            font_name: "ChineseHei"
-            text: "水分值: " + str(int(root.vm.hydration)) + "%"
-            font_size: "14sp"
-            color: 0.3, 0.5, 0.8, 1
-            halign: "left"
-            size_hint_y: 0.4
-
-        ProgressBar:
-            value: root.vm.hydration_norm * 100
-            max: 100
-            size_hint_y: 0.6
-            background_color: 0.85, 0.85, 0.85, 1
-            color: 0.2, 0.6, 0.9, 1
-
-    # ── 今日进度星星 ──
-    ProgressStars:
-        id: progress_stars
-        viewmodel: root.vm
-        size_hint_y: 0.06
+            SettingsGear:
+                size_hint_x: 1
+                callback: root.open_settings
 
     # ── 3D 伙伴模型 ──
     Companion3DWidget:
         id: companion_3d
         viewmodel: root.vm
-        size_hint_y: 0.25
+        size_hint_y: 0.40
+
+    # ── 连续天数火焰 ──
+    StreakFire:
+        id: streak_fire
+        viewmodel: root.vm
+        size_hint_y: 0.06
+
+    # ── 喝水统计 ──
+    Label:
+        font_name: "ChineseHei"
+        text: "Lv." + str(root.vm.level) + "  已喝 " + str(root.vm.today_cups) + " 杯"
+        font_size: "18sp"
+        color: 0.3, 0.3, 0.3, 1
+        size_hint_y: 0.05
+
+    # ── 今日进度星星 ──
+    ProgressStars:
+        id: progress_stars
+        viewmodel: root.vm
+        size_hint_y: 0.05
 
     # ── Toast 提示 ──
     Toast:
@@ -126,7 +85,7 @@
         text: root.vm.button_text
         font_size: "36sp"
         bold: True
-        size_hint_y: 0.3
+        size_hint_y: 0.28
         background_normal: ""
         background_color: (0.3, 0.6, 1.0, 1) if not root.vm.button_disabled else (0.7, 0.7, 0.7, 1)
         color: 1, 1, 1, 1
@@ -140,5 +99,3 @@
                 pos: self.pos
                 size: self.size
                 radius: [40]
-
-
