@@ -1,44 +1,36 @@
-"""伙伴展示 Widget — 3D OBJ 模型 (面+边混排深度排序)."""
+"""伙伴展示 Widget — NumPy 光栅化 + 多伙伴 + 水滴粒子."""
 
-import math
-import os
-import time
+import math, os, time, random
+import numpy as np
 
 from kivy.clock import Clock
-from kivy.graphics import Color, Instruction, Line, Mesh
+from kivy.graphics import Color, Ellipse, Line, Rectangle
+from kivy.graphics.texture import Texture
 from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
 
-# ═══════════════════════════════════════════════════════════════════
-
-_MODELS_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "resources", "models"
-)
+_MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "resources", "models")
 _DEFAULT_MODEL = os.path.join(_MODELS_DIR, "companion.obj")
 
 _CUBE_VERTS = [
-    (-2,-2,-2),( 1,-1,-1),( 1, 1,-1),(-1, 1,-1),
-    (-1,-1, 1),( 1,-1, 1),( 1, 1, 1),(-1, 1, 1),
-]
-_CUBE_EDGES = [
-    (0,1),(1,2),(2,3),(3,0),(4,5),(5,6),(6,7),(7,4),(0,4),(1,5),(2,6),(3,7),
+    (-0.5,-0.5,-0.5),(0.5,-0.5,-0.5),(0.5,0.5,-0.5),(-0.5,0.5,-0.5),
+    (-0.5,-0.5,0.5),(0.5,-0.5,0.5),(0.5,0.5,0.5),(-0.5,0.5,0.5),
 ]
 _CUBE_FACES: list[list[int]] = [
-    [0,1,2, 0,2,3],[4,6,5, 4,7,6],[0,4,5, 0,5,1],
-    [1,5,6, 1,6,2],[2,6,7, 2,7,3],[3,7,4, 3,4,0],
+    [0,1,2],[0,2,3],[4,6,5],[4,7,6],[0,4,5],[0,5,1],
+    [1,5,6],[1,6,2],[2,6,7],[2,7,3],[3,7,4],[3,4,0],
 ]
 
 def _resolve(idx, cnt):
     i = int(idx); return i-1 if i>0 else cnt+i
 
 def load_obj(path):
-    positions, faces, edges = [], [], set()
+    positions, faces = [], []
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"): continue
-            parts = line.split()
-            t = parts[0]
+            parts = line.split(); t = parts[0]
             if t == "v":
                 positions.append((float(parts[1]), float(parts[2]), float(parts[3])))
             elif t == "f":
@@ -48,128 +40,352 @@ def load_obj(path):
                     pts.append(_resolve(vi_s, len(positions)))
                 for i in range(1, len(pts)-1):
                     faces.append([pts[0], pts[i], pts[i+1]])
-                n = len(pts)
-                for i in range(n):
-                    a,b = pts[i], pts[(i+1)%n]; edges.add((a,b) if a<b else (b,a))
-    return positions, faces, list(edges)
+    return positions, faces
 
 
 class Companion3DWidget(Widget):
-    """面+边深度混排 3D 模型."""
+    """NumPy z-buffer 3D + 多伙伴切换 + 水滴粒子."""
 
     viewmodel = ObjectProperty(None)
-    AUTO_ROTATE_SPEED = 0.8
-    AUTO_RESUME_DELAY = 1.5
+    AUTO_ROTATE_SPEED = 0.6
+    AUTO_RESUME_DELAY = 1.0
     DRAG_SENSITIVITY = 0.01
-    BOUNCE_AMP = 5.0
-    BOUNCE_FREQ = 2.0
+    SLIDE_DURATION = 0.35          # 切换滑动时间(秒)
 
-    def __init__(self, model_path=None, **kwargs):
+    def __init__(self, model_path=None, model_paths=None, companions=None, **kwargs):
         super().__init__(**kwargs)
-        self._auto_ay = 0.0; self._auto_ax = 0.35
+        self._auto_ay = 0.0; self._auto_ax = -0.6
         self._drag_ay = 0.0; self._drag_ax = 0.0
         self._dragging = False; self._release_t = 0.0
-        self._last_t = (0.0, 0.0); self._tacc = 0.0; self._bounce = 0.0
+        self._last_t = (0.0, 0.0); self._tacc = 0.0
         self._mscale = 1.0
-        self._body_rgb = [0.25, 0.65, 1.00]
-        self._edge_rgb = [0.10, 0.30, 0.60]
+        self._diffuse = [0.25, 0.65, 1.00]
+        self._ambient = [0.08, 0.20, 0.35]
 
-        path = model_path or _DEFAULT_MODEL
-        if os.path.exists(path):
-            try:
-                self._verts, self._faces, self._edges = load_obj(path)
-                print(f"[Companion] OBJ: {len(self._verts)}v {len(self._faces)}f {len(self._edges)}e")
-            except Exception as e:
-                print(f"[Companion] OBJ fail: {e}")
-                self._verts=_CUBE_VERTS; self._faces=_CUBE_FACES; self._edges=_CUBE_EDGES
-        else:
-            print("[Companion] 用后备立方体")
-            self._verts=_CUBE_VERTS; self._faces=_CUBE_FACES; self._edges=_CUBE_EDGES
+        # ── 伙伴列表 ──
+        self._companions: list[str] = list(companions or [])
+        if model_path: self._companions.append(model_path)
+        if not self._companions: self._companions = [_DEFAULT_MODEL]
+        self._current_idx = 0
 
-        self.bind(pos=self._on_geo, size=self._on_geo)
-        Clock.schedule_interval(self._update, 0)
+        # ── 每伙伴独立数据: {idx: {level, stage, scale}}  喝水值全局共享 ──
+        self._companion_data: dict[int, dict] = {}
+        for i in range(len(self._companions)):
+            self._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0}
 
-    # ── 3D→2D ──
-    @staticmethod
-    def _proj(v, ay, ax):
-        x, y, z = v
-        cy, sy = math.cos(ay), math.sin(ay)
-        x, z = x*cy + z*sy, -x*sy + z*cy
-        cx, sx = math.cos(ax), math.sin(ax)
-        y, z = y*cx - z*sx, y*sx + z*cx
-        s = 1.5 / max(z + 3.0, 0.1)
-        return x*s, y*s, z
+        # ── 模型注册表 (阶段→路径) ──
+        self._model_paths: dict[str, str] = {}
+        if model_paths: self._model_paths.update(model_paths)
 
-    def _on_geo(self, *a): pass
+        # ── 模型缓存 ──
+        self._model_cache: dict[str, tuple] = {}
+        self._verts: list = _CUBE_VERTS
+        self._faces: list[list[int]] = _CUBE_FACES
+        self._load_model(self._companions[0])
 
-    # ── 帧 ──
-    def _update(self, dt):
-        now = time.time(); self._tacc += dt
-        if not self._dragging and (now - self._release_t) >= self.AUTO_RESUME_DELAY:
-            self._auto_ay += self.AUTO_ROTATE_SPEED * dt
-            self._auto_ay %= 2*math.pi
-        ay = self._auto_ay + self._drag_ay
-        ax = self._auto_ax + self._drag_ax
-        self._bounce = (math.sin(self._tacc * self.BOUNCE_FREQ * 2*math.pi)
-                        * self.BOUNCE_AMP * self._mscale)
+        # ── 滑动动画 ──
+        self._slide_offset = 0.0         # 当前滑动偏移 (-1~1, 0=正常)
+        self._slide_prev_verts = None    # 切换前的模型顶点(用于同时渲染)
+        self._slide_prev_faces = None
 
-        ox, oy = self.pos; w, h = self.width, self.height
-        size = min(w, h); sc = size * 0.5 * self._mscale
-        cx = ox + w/2; cy = oy + h/2 + self._bounce
-        proj = [self._proj(v, ay, ax) for v in self._verts]
+        # ── 水滴粒子 ──
+        self._drops: list[dict] = []    # [{x, y, vy, life, size}]
 
-        # ── 收集所有元素 (面 + 边)，按深度排序 ──
-        Element = tuple[float, str, int]  # (z, type, index)
-        elements: list[tuple[float, str, int]] = []
+        # ── 贴图 ──
+        self._tex = Texture.create(size=(2, 2), colorfmt='rgba')
+        self._tex.mag_filter = 'nearest'
+        with self.canvas:
+            Color(1, 1, 1, 1)
+            self._rect = Rectangle(texture=self._tex, pos=(0, 0), size=(100, 100))
 
-        for fi, face in enumerate(self._faces):
-            z_avg = sum(proj[v][2] for v in face) / len(face)
-            elements.append((z_avg, "face", fi))
-
-        for ei, (a, b) in enumerate(self._edges):
-            z_avg = (proj[a][2] + proj[b][2]) / 2.0
-            elements.append((z_avg, "edge", ei))
-
-        elements.sort(key=lambda x: x[0], reverse=True)  # 远处先画(大z=远)
-
-        # ── 重建 Canvas ──
-        self.canvas.clear()
+        # ── 切换 UI ──
+        self._arrows_visible = False  # 左右箭头是否可见
 
         with self.canvas:
-            for _, typ, idx in elements:
-                if typ == "face":
-                    face = self._faces[idx]
-                    v0, v1, v2 = proj[face[0]], proj[face[1]], proj[face[2]]
-                    Color(*self._body_rgb)
-                    Mesh(
-                        vertices=[
-                            v0[0]*sc+cx, v0[1]*sc+cy, 0, 0,
-                            v1[0]*sc+cx, v1[1]*sc+cy, 0, 0,
-                            v2[0]*sc+cx, v2[1]*sc+cy, 0, 0,
-                        ],
-                        indices=[0,1,2], mode="triangles",
-                    )
-                else:
-                    a, b = self._edges[idx]
-                    Color(*self._edge_rgb)
-                    Line(
-                        points=[proj[a][0]*sc+cx, proj[a][1]*sc+cy,
-                                proj[b][0]*sc+cx, proj[b][1]*sc+cy],
-                        width=max(1.0, sc*0.015),
-                    )
+            # 触发按钮 (始终可见, 右上角)
+            self._btn_bg = Color(0.2, 0.2, 0.2, 0.4)
+            self._btn_circle = Ellipse(pos=(0,0), size=(0,0))
+            self._btn_c = Color(1, 1, 1, 0.85)
+            self._btn_lines = Line(points=[0,0]*6, width=2)  # ↕ 图标
 
-    # ── 触控 ──
+            # 左箭头 (条件可见)
+            self._la_bg = Color(0, 0, 0, 0.3)
+            self._la_circle = Ellipse(pos=(0,0), size=(0,0))
+            self._la_c = Color(1, 1, 1, 0.7)
+            self._la_icon = Line(points=[0,0,0,0,0,0], width=2, close=True)
+
+            # 右箭头 (条件可见)
+            self._ra_bg = Color(0, 0, 0, 0.3)
+            self._ra_circle = Ellipse(pos=(0,0), size=(0,0))
+            self._ra_c = Color(1, 1, 1, 0.7)
+            self._ra_icon = Line(points=[0,0,0,0,0,0], width=2, close=True)
+
+        self.bind(pos=self._on_geo, size=self._on_geo)
+        self._on_geo()
+        Clock.schedule_interval(self._update, 0)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 伙伴切换 (带滑动动效)
+    # ═══════════════════════════════════════════════════════════════
+    def _next_companion(self):
+        self._switch_companion(1)
+
+    def _prev_companion(self):
+        self._switch_companion(-1)
+
+    def _switch_companion(self, direction: int):
+        if len(self._companions) <= 1: return
+        # 保存当前伙伴数据 (等级/形态，不包括水分)
+        self._companion_data[self._current_idx]["scale"] = self._mscale
+        # 保存旧模型用于过渡渲染
+        self._slide_prev_verts = self._verts
+        self._slide_prev_faces = self._faces
+        self._slide_offset = float(direction)
+
+        self._current_idx = (self._current_idx + direction) % len(self._companions)
+        self._load_model(self._companions[self._current_idx])
+
+        # 恢复新伙伴数据
+        data = self._companion_data[self._current_idx]
+        self._mscale = data.get("scale", 1.0)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 水滴粒子
+    # ═══════════════════════════════════════════════════════════════
+    def trigger_drops(self, count: int = 15):
+        """触发水滴粒子动画。传入生成数量。"""
+        w, h = self.width, self.height
+        cx, cy = self.pos[0] + w/2, self.pos[1] + h/2
+        for _ in range(count):
+            angle = random.uniform(-0.7, 0.7)  # 上方扇形
+            dist = random.uniform(w*0.05, w*0.18)
+            self._drops.append({
+                "x": cx + math.sin(angle) * dist,
+                "y": cy + w*0.25 + random.uniform(0, w*0.10),
+                "vy": random.uniform(-80, -30),   # 初始向上
+                "life": random.uniform(0.8, 1.2),
+                "size": random.uniform(3, 6),
+            })
+
+    # ═══════════════════════════════════════════════════════════════
+    # 3D 数学
+    # ═══════════════════════════════════════════════════════════════
+    @staticmethod
+    def _rotate(v, ay, ax):
+        x, y, z = v
+        cy, sy = math.cos(ay), math.sin(ay)
+        x, z = x*cy+z*sy, -x*sy+z*cy
+        cx, sx = math.cos(ax), math.sin(ax)
+        y, z = y*cx-z*sx, y*sx+z*cx
+        return x, y, z
+
+    def _render_model(self, verts, faces, sc, cx, cy, ay, ax, zbuf, pxbuf, ox, oy):
+        """渲染一个模型到像素缓冲."""
+        Lx, Ly, Lz = 0.0, 0.0, 1.0
+        for face in faces:
+            r0 = self._rotate(verts[face[0]], ay, ax)
+            r1 = self._rotate(verts[face[1]], ay, ax)
+            r2 = self._rotate(verts[face[2]], ay, ax)
+            e1x,e1y,e1z = r1[0]-r0[0], r1[1]-r0[1], r1[2]-r0[2]
+            e2x,e2y,e2z = r2[0]-r0[0], r2[1]-r0[1], r2[2]-r0[2]
+            nx = e1y*e2z-e1z*e2y; ny = e1z*e2x-e1x*e2z; nz = e1x*e2y-e1y*e2x
+            nlen = math.sqrt(nx*nx+ny*ny+nz*nz) or 1
+            bright = 0.30 + abs((nx*Lx+ny*Ly+nz*Lz)/nlen)*0.70
+            p2d = []
+            for (rx,ry,rz) in (r0,r1,r2):
+                s = 2.5 / max(rz+8.0, 0.1)
+                p2d.append((rx*s*sc+cx, ry*s*sc+cy, (rz+8.0)/16.0))
+            color = np.array([self._diffuse[0]*bright, self._diffuse[1]*bright, self._diffuse[2]*bright, 1.0], dtype=np.float32)
+            self._rasterize(p2d, color, zbuf, pxbuf, ox, oy)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 圆环 + 光栅化
+    # ═══════════════════════════════════════════════════════════════
+    def _draw_ring(self, pxbuf, w, h):
+        norm = getattr(self, '_hydration_norm', 1.0)
+        r = np.array([0.45-0.25*norm, 0.50+0.35*norm, 0.55+0.45*norm, 1.0])
+        rg = np.array([0.24, 0.24, 0.27, 0.31])
+        size = min(w, h); cx, cy = w/2, h/2
+        r_out, r_in = size*0.44, size*0.37
+        yy, xx = np.ogrid[:h, :w]
+        dist2 = (xx-cx+0.5)**2 + (yy-cy+0.5)**2
+        mask = (dist2>=r_in*r_in) & (dist2<=r_out*r_out)
+        angle = np.arctan2(xx-cx+0.5, yy-cy+0.5)
+        angle[angle<0] += 2*np.pi
+        filled = angle/(2*np.pi) <= norm
+        pxbuf[filled&mask] = (r*255).astype(np.uint8)
+        pxbuf[(~filled)&mask] = (rg*255).astype(np.uint8)
+
+    @staticmethod
+    def _rasterize(p2d, color, zbuf, pxbuf, ox, oy):
+        (x0,y0,z0),(x1,y1,z1),(x2,y2,z2) = p2d
+        mx = int(max(0, min(x0,x1,x2)-ox)); Mx = int(min(pxbuf.shape[1]-1, max(x0,x1,x2)-ox))
+        my = int(max(0, min(y0,y1,y2)-oy)); My = int(min(pxbuf.shape[0]-1, max(y0,y1,y2)-oy))
+        if mx>Mx or my>My: return
+        yy, xx = np.ogrid[my:My+1, mx:Mx+1]
+        sx, sy = xx+ox+0.5, yy+oy+0.5
+        denom = (y1-y2)*(x0-x2)+(x2-x1)*(y0-y2)
+        if abs(denom)<0.001: return
+        w0 = ((y1-y2)*(sx-x2)+(x2-x1)*(sy-y2))/denom
+        w1 = ((y2-y0)*(sx-x2)+(x0-x2)*(sy-y2))/denom
+        w2 = 1-w0-w1
+        inside = (w0>=0)&(w1>=0)&(w2>=0)
+        if not inside.any(): return
+        z = w0*z0+w1*z1+w2*z2
+        region_z = zbuf[my:My+1, mx:Mx+1]
+        closer = inside & (z < region_z)
+        zbuf[my:My+1, mx:Mx+1][closer] = z[closer]
+        c = (color*255).astype(np.uint8)
+        pxbuf[my:My+1, mx:Mx+1][closer] = c
+
+    # ═══════════════════════════════════════════════════════════════
+    # 帧
+    # ═══════════════════════════════════════════════════════════════
+    def _update(self, dt):
+        now = time.time(); self._tacc += dt
+        if not self._dragging and (now-self._release_t) >= self.AUTO_RESUME_DELAY:
+            self._auto_ay += self.AUTO_ROTATE_SPEED*dt; self._auto_ay %= 2*math.pi
+
+        # ── 滑动动画 ──
+        if abs(self._slide_offset) > 0.001:
+            self._slide_offset += (-self._slide_offset) * min(1.0, dt*8)
+            if abs(self._slide_offset) < 0.005:
+                self._slide_offset = 0.0
+                self._slide_prev_verts = None
+                self._slide_prev_faces = None
+
+        ay = self._auto_ay + self._drag_ay
+        ax = self._auto_ax + self._drag_ax
+        ox, oy = self.pos; w, h = int(self.width), int(self.height)
+        if w<2 or h<2: return
+        sc = min(w,h)*0.5*self._mscale
+        cx, cy = ox+w/2, oy+h/2
+
+        zbuf = np.full((h,w), np.inf, dtype=np.float32)
+        pxbuf = np.zeros((h,w,4), dtype=np.uint8)
+
+        self._draw_ring(pxbuf, w, h)
+
+        # ── 滑动过渡: 同时渲染旧模型和新模型 ──
+        slide = self._slide_offset
+        if abs(slide) > 0.001 and self._slide_prev_verts is not None:
+            # 旧模型滑出
+            shift_x = slide * w * 0.8
+            self._render_model(self._slide_prev_verts, self._slide_prev_faces, sc, cx+shift_x, cy, ay, ax, zbuf, pxbuf, ox, oy)
+            # 新模型滑入
+            shift_x2 = (slide - (1 if slide>0 else -1)) * w * 0.8 * (-1)
+            if slide > 0: shift_x2 = (slide-1)*w*0.8
+            else: shift_x2 = (slide+1)*w*0.8
+            self._render_model(self._verts, self._faces, sc, cx+shift_x2, cy, ay, ax, zbuf, pxbuf, ox, oy)
+        else:
+            self._render_model(self._verts, self._faces, sc, cx, cy, ay, ax, zbuf, pxbuf, ox, oy)
+
+        # ── 水滴粒子 ──
+        for drop in self._drops:
+            drop["y"] += drop["vy"] * dt
+            drop["vy"] -= 120 * dt  # 重力
+            drop["life"] -= dt
+        self._drops = [d for d in self._drops if d["life"] > 0]
+
+        # 绘制水滴 (在3D模型之上)
+        for drop in self._drops:
+            dx = int(drop["x"]-ox); dy = int(drop["y"]-oy)
+            sz = int(drop["size"])
+            alpha = min(1.0, drop["life"]/0.3)
+            drop_color = np.array([0.25, 0.70, 1.0, alpha])
+            x0 = max(0, dx-sz); x1 = min(w-1, dx+sz)
+            y0 = max(0, dy-sz); y1 = min(h-1, dy+sz)
+            if x0>x1 or y0>y1: continue
+            yy, xx = np.ogrid[y0:y1+1, x0:x1+1]
+            d2 = (xx-dx)**2 + (yy-dy)**2
+            mask = d2 <= sz*sz
+            c = (drop_color*255).astype(np.uint8)
+            region = pxbuf[y0:y1+1, x0:x1+1]
+            region[mask] = c
+
+        # 更新贴图
+        if self._tex.size != (w,h):
+            self._tex = Texture.create(size=(w,h), colorfmt='rgba')
+            self._tex.mag_filter = 'nearest'
+            self._rect.texture = self._tex
+        self._tex.blit_buffer(pxbuf.tobytes(), colorfmt='rgba', bufferfmt='ubyte')
+        self.canvas.ask_update()
+
+    # ═══════════════════════════════════════════════════════════════
+    # UI 几何
+    # ═══════════════════════════════════════════════════════════════
+    def _on_geo(self, *a):
+        ox, oy = self.pos; w, h = self.size
+        self._rect.pos = (ox, oy); self._rect.size = (w, h)
+        if len(self._companions) <= 1: return
+        r = min(w, h) * 0.06
+        # ── 触发按钮 (右上角, 始终可见) ──
+        br = r * 1.3
+        bx, by = ox + w - br*2 - 4, oy + h - br*2 - 4
+        self._btn_circle.pos = (bx, by)
+        self._btn_circle.size = (br*2, br*2)
+        # ↕ 图标: 上下两个箭头
+        cx, cy = bx + br, by + br
+        s = br * 0.35
+        self._btn_lines.points = [
+            cx-s, cy+s, cx, cy+s*0.4, cx+s, cy+s,  # 上箭头
+            cx-s, cy-s, cx, cy-s*0.4, cx+s, cy-s,  # 下箭头
+        ]
+        # ── 左右箭头 (仅在选择模式时显示) ──
+        if self._arrows_visible:
+            lx, ly = ox + 8, oy + h/2 - r
+            rx = ox + w - 8 - r*2
+            for circle, icon, x in [(self._la_circle, self._la_icon, lx),
+                                     (self._ra_circle, self._ra_icon, rx)]:
+                circle.pos = (x - r*0.3, ly - r*0.3)
+                circle.size = (r*2.6, r*2.6)
+            self._la_icon.points = [lx+r*0.8, ly+r*1.3, lx+r*0.2, ly+r, lx+r*0.8, ly+r*0.7]
+            rx2 = rx + r*0.2
+            self._ra_icon.points = [rx2+r*0.3, ly+r*1.3, rx2+r*0.9, ly+r, rx2+r*0.3, ly+r*0.7]
+        else:
+            self._la_circle.size = (0, 0); self._ra_circle.size = (0, 0)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 触控
+    # ═══════════════════════════════════════════════════════════════
     def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            touch.grab(self); self._dragging = True
-            self._last_t = touch.pos; return True
-        return super().on_touch_down(touch)
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        if len(self._companions) <= 1:
+            touch.grab(self); self._dragging = True; self._last_t = touch.pos; return True
+        # 1. 触发按钮 (始终响应)
+        if self._hit_circle(touch, self._btn_circle):
+            self._arrows_visible = not self._arrows_visible
+            self._update_arrow_visibility()
+            return True
+        # 2. 左右箭头 (仅在可见时响应, 不退出模式)
+        if self._arrows_visible:
+            if self._hit_circle(touch, self._la_circle):
+                self._prev_companion(); return True
+            if self._hit_circle(touch, self._ra_circle):
+                self._next_companion(); return True
+            # 点击非箭头区域 → 退出选择模式
+            self._arrows_visible = False; self._update_arrow_visibility()
+        touch.grab(self); self._dragging = True
+        self._last_t = touch.pos; return True
+
+    @staticmethod
+    def _hit_circle(touch, circle):
+        cx, cy = circle.pos; r = circle.size[0]/2
+        return abs(touch.x-(cx+r))<r*1.3 and abs(touch.y-(cy+r))<r*1.3
+
+    def _update_arrow_visibility(self):
+        """根据 _arrows_visible 显隐左右箭头."""
+        if self._arrows_visible:
+            self._on_geo()  # 重新计算箭头位置
+        else:
+            self._la_circle.size = (0, 0); self._ra_circle.size = (0, 0)
 
     def on_touch_move(self, touch):
         if touch.grab_current is self:
-            dx = touch.x - self._last_t[0]; dy = touch.y - self._last_t[1]
-            self._drag_ay += dx * self.DRAG_SENSITIVITY
-            self._drag_ax += dy * self.DRAG_SENSITIVITY * 0.5
+            dx = touch.x-self._last_t[0]; dy = touch.y-self._last_t[1]
+            self._drag_ay -= dx*self.DRAG_SENSITIVITY
+            self._drag_ax += dy*self.DRAG_SENSITIVITY*0.5
             self._last_t = touch.pos; return True
         return super().on_touch_move(touch)
 
@@ -179,18 +395,59 @@ class Companion3DWidget(Widget):
             self._release_t = time.time(); return True
         return super().on_touch_up(touch)
 
-    # ── ViewModel ──
+    # ═══════════════════════════════════════════════════════════════
+    # 模型加载
+    # ═══════════════════════════════════════════════════════════════
+    def _load_model(self, path):
+        if path in self._model_cache:
+            self._verts, self._faces = self._model_cache[path]; return
+        if os.path.exists(path):
+            try:
+                v, f = load_obj(path); self._model_cache[path]=(v,f); self._verts,self._faces=v,f
+            except Exception as e: print(f"load fail: {path} ({e})")
+        else: print(f"not found: {path}")
+
+    def set_model(self, path): self._load_model(path)
+    def set_models(self, paths): self._model_paths.update(paths)
+
+    def setup_companions(self, paths: list[str]):
+        """运行时配置多伙伴列表。清除旧伙伴，重新加载。"""
+        self._companions = list(paths)
+        self._current_idx = 0
+        self._companion_data = {}
+        for i in range(len(self._companions)):
+            self._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0}
+        self._load_model(self._companions[0])
+        if hasattr(self, '_arr_l_circle') and len(self._companions) <= 1:
+            self._arr_l_circle.size = (0, 0); self._arr_r_circle.size = (0, 0)
+        self._on_geo()
+
+    @property
+    def current_companion_index(self): return self._current_idx
+    @property
+    def companion_count(self): return len(self._companions)
+
+    # ═══════════════════════════════════════════════════════════════
+    # ViewModel
+    # ═══════════════════════════════════════════════════════════════
     def on_viewmodel(self, instance, vm):
         if vm is None: return
         vm.bind(hydration_norm=self._on_hydration)
         vm.bind(evolution_stage=self._on_evolution)
+        vm.bind(drops_trigger=self._on_drops)
         self._on_hydration(vm, vm.hydration_norm)
         self._on_evolution(vm, vm.evolution_stage)
 
+    def _on_drops(self, vm, val):
+        self.trigger_drops(15)
+
     def _on_hydration(self, vm, norm):
         norm = max(0, min(1, norm))
+        self._hydration_norm = norm
         r,g,b = 0.45-0.25*norm, 0.50+0.35*norm, 0.55+0.45*norm
-        self._body_rgb = [r,g,b]; self._edge_rgb = [r*0.4, g*0.4, b*0.5]
+        self._diffuse = [r,g,b]; self._ambient = [r*0.3, g*0.3, b*0.35]
 
     def _on_evolution(self, vm, stage):
         self._mscale = {"形态A":1,"形态B":1.08,"形态C":1.15,"形态D":1.22,"形态E":1.3}.get(stage,1)
+        if stage in self._model_paths:
+            self._load_model(self._model_paths[stage])

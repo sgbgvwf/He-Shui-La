@@ -17,11 +17,12 @@ class MainViewModel(EventDispatcher):
     # ── observable properties ───────────────────────────────────
 
     hydration = NumericProperty(100)
-    hydration_norm = NumericProperty(1.0)  # 0.0 ~ 1.0 for progress bar
+    hydration_norm = NumericProperty(1.0)
     level = NumericProperty(1)
     exp = NumericProperty(0)
     evolution_stage = StringProperty("形态A")
     today_cups = NumericProperty(0)
+    drops_trigger = NumericProperty(0)  # 每次喝水+1，widget绑此触发水滴
 
     button_text = StringProperty("喝水啦！")
     button_disabled = BooleanProperty(False)
@@ -61,6 +62,10 @@ class MainViewModel(EventDispatcher):
             self._show_toast(reason)
             return
 
+        result = self.companion.drink()
+        self.anticheat.record()
+        self.drops_trigger += 1  # 触发水滴动画
+        self._sync_from_model()
         bonus = self.daily_tracker.streak_bonus
 
         companion_result = self.companion.drink(streak_bonus=bonus)
@@ -272,3 +277,4 @@ class MainViewModel(EventDispatcher):
             lambda _dt: self.dismiss_toast(),
             self.config.toast_duration_seconds,
         )
+
