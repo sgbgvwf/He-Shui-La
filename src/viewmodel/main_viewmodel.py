@@ -62,15 +62,12 @@ class MainViewModel(EventDispatcher):
             self._show_toast(reason)
             return
 
-        result = self.companion.drink()
         self.anticheat.record()
         self.drops_trigger += 1  # 触发水滴动画
-        self._sync_from_model()
-        bonus = self.daily_tracker.streak_bonus
 
+        bonus = self.daily_tracker.streak_bonus
         companion_result = self.companion.drink(streak_bonus=bonus)
         tracker_result = self.daily_tracker.record()
-        self.anticheat.record()
         self.achievement_manager.total_cups += 1
         self._sync_from_model()
         self._schedule_autosave()
@@ -179,7 +176,7 @@ class MainViewModel(EventDispatcher):
         })
         save_user_config(target, {
             "version": 1,
-            "target_cups": self.config.daily_target,
+            "daily_target": self.config.daily_target,
             "target_reward_exp": self.config.target_reward_exp,
             "streak_bonus_table": [
                 [int(d), float(r)] for d, r in self.config.streak_bonus_table

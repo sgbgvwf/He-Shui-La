@@ -130,9 +130,9 @@ class DrinkLaApp(App):
 
         # 配置多伙伴模型列表
         root.ids.companion_3d.setup_companions([
-            "src/view/resources/models/companion.obj",
-            "src/view/resources/models/ico.obj",
-            "src/view/resources/models/diamond.obj",
+            "src/view/resources/models/companion.glb",
+            "src/view/resources/models/Tree_1.glb",
+            "src/view/resources/models/diamond.glb",
         ])
 
         return root

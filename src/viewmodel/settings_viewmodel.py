@@ -81,7 +81,7 @@ class SettingsViewModel(EventDispatcher):
         ensure_data_dir(self.data_dir)
         save_user_config(self.data_dir, {
             "version": 1,
-            "target_cups": self.config.daily_target,
+            "daily_target": self.config.daily_target,
             "target_reward_exp": self.config.target_reward_exp,
             "streak_bonus_table": [
                 [int(d), float(r)] for d, r in self.config.streak_bonus_table
