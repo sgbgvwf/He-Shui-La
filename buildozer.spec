@@ -32,7 +32,6 @@ android.permissions = INTERNET,VIBRATE
 android.archs = arm64-v8a
 android.api = 33
 android.minapi = 26
-android.ndk = 27
 
 # ── 签名 (debug 测试用) ──
 android.allow_backup = True
