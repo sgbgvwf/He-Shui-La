@@ -14,7 +14,9 @@ jobs:
 
       - name: Install system deps
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           sudo apt update -qq
+          sudo apt remove -y -qq r-base-dev pkgconf 2>/dev/null || true
           sudo apt install -y -qq python3-pip openjdk-17-jdk git zip unzip \
             autoconf libtool pkg-config zlib1g-dev libncurses-dev \
             cmake libffi-dev libssl-dev libltdl-dev
