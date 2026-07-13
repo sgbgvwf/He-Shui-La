@@ -26,12 +26,14 @@ fullscreen = 1
 # ── Android 权限 ──
 android.permissions = INTERNET,VIBRATE
 
+# ── Android SDK License ──
+android.accept_sdk_license = True
+
 # ── Android 架构 (现代手机都是 arm64-v8a) ──
-android.arch = arm64-v8a
+android.archs = arm64-v8a
 android.api = 33
 android.minapi = 26
 android.ndk = 25b
-android.sdk = 34
 
 # ── 签名 (debug 测试用) ──
 android.allow_backup = True
