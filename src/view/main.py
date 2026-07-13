@@ -8,11 +8,9 @@ from kivy.config import Config
 # ── 移动端 / 桌面端 自适应配置 ──
 IS_MOBILE = hasattr(sys, "getandroidapilevel") or sys.platform in ("ios", "android")
 
-# 鼠标右键菜单仅桌面端需要关闭
 if not IS_MOBILE:
     Config.set("input", "mouse", "mouse,disable_multitouch")
 
-# 窗口自适应：移动端自动全屏，桌面端可缩放
 Config.set("graphics", "resizable", True)
 if IS_MOBILE:
     Config.set("graphics", "fullscreen", "auto")
@@ -34,19 +32,16 @@ SETTINGS_KV_PATH = os.path.join(_BASE_DIR, "settings_dialog.kv")
 ACHIEVEMENT_KV_PATH = os.path.join(_BASE_DIR, "achievement_screen.kv")
 _MODELS_DIR = os.path.join(_BASE_DIR, "resources", "models")
 
-_SOUNDS_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "resources", "sounds"
-)
+_SOUNDS_DIR = os.path.join(_BASE_DIR, "resources", "sounds")
 
 # ── 注册中文字体 ──
-_FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "fonts")
+_FONT_DIR = os.path.join(_BASE_DIR, "resources", "fonts")
 _FONT_HEI = os.path.join(_FONT_DIR, "SourceHanSansSC-Regular-2.otf")
 _FONT_SONG = os.path.join(_FONT_DIR, "SourceHanSerifSC-Regular.otf")
 
 LabelBase.register(name="ChineseHei", fn_regular=_FONT_HEI)
 LabelBase.register(name="ChineseSong", fn_regular=_FONT_SONG)
 
-# ── 移动端键盘适配 ──
 if IS_MOBILE:
     Window.softinput_mode = "below_target"
 
@@ -128,6 +123,14 @@ class MainScreen(BoxLayout):
 
     def on_data_reset(self) -> None:
         self.vm.reload_config()
+        # 重置伙伴 widget 数据
+        if hasattr(self, 'ids') and 'companion_3d' in self.ids:
+            w = self.ids.companion_3d
+            w._current_idx = 0
+            for i in range(len(w._companions)):
+                w._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0, "models": w._companion_data[i].get("models", {}), "name": w._companion_data[i].get("name", "伙伴")}
+            w._mscale = 1.0
+            w._load_model(w._companions[0])
 
 
 class DrinkLaApp(App):
@@ -153,6 +156,11 @@ class DrinkLaApp(App):
             os.path.join(_MODELS_DIR, "Tree_1.glb"),
             os.path.join(_MODELS_DIR, "diamond.glb"),
         ])
+        # 树的进化模型: 等级1→Tree_1, 等级2→Tree_2
+        root.ids.companion_3d.set_companion_models(1, {
+            "1": os.path.join(_MODELS_DIR, "Tree_1.glb"),
+            "2": os.path.join(_MODELS_DIR, "Tree_2.glb"),
+        })
 
         return root
 

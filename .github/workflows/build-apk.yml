@@ -2,12 +2,12 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, feat/mainWindow, feat/platform]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,12 +26,7 @@ jobs:
         run: buildozer android debug --verbose 2>&1
         timeout-minutes: 45
 
-      - name: List output
-        if: always()
-        run: ls -la bin/ || echo "no bin/ directory"
-
       - name: Upload APK
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: heshuila-debug-apk
