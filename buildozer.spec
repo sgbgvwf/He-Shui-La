@@ -8,7 +8,7 @@ source.dir = .
 source.include_exts = py,kv,glsl,glb,obj,otf,ttf,wav,mp3,ogg,png,jpg,atlas,json,txt
 
 # ── 依赖 ──
-requirements = python3,kivy,numpy,pygltflib
+requirements = python3,kivy,numpy==1.26.4,pygltflib
 
 # ── 入口 ──
 # 项目根目录 main.py → src/view/main.py → DrinkLaApp
