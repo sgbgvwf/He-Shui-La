@@ -1,8 +1,6 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -17,25 +15,34 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           sudo apt update -qq
           sudo apt remove -y -qq r-base-dev pkgconf 2>/dev/null || true
-          sudo apt install -y -qq python3-pip openjdk-17-jdk git zip unzip \
+          sudo apt install -y -qq python3-pip openjdk-17-jdk zip unzip \
             autoconf libtool pkg-config zlib1g-dev libncurses-dev \
             cmake libffi-dev libssl-dev libltdl-dev
 
-      - name: Install Buildozer
+      - name: Install p4a
         run: |
           pip3 install cython
-          pip3 install buildozer
+          pip3 install python-for-android
 
-      - name: Clean old build cache
-        run: rm -rf /home/runner/.buildozer /home/runner/work/He-Shui-La/He-Shui-La/.buildozer
-
-      - name: Build APK
-        run: buildozer android debug --verbose 2>&1
+      - name: p4a create (build recipes)
+        run: |
+          p4a create --requirements=python3,kivy,numpy,pygltflib \
+            --arch=arm64-v8a --dist-name=heshuila \
+            --bootstrap=sdl2 --permission=INTERNET --permission=VIBRATE \
+            --orientation=portrait --copy-libs
         timeout-minutes: 45
+
+      - name: p4a apk (package)
+        run: |
+          p4a apk --dist-name=heshuila \
+            --private=$GITHUB_WORKSPACE \
+            --package=org.heshuila.heshuila \
+            --name="DrinkWater" --version=0.1.0
+        timeout-minutes: 15
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: heshuila-debug-apk
-          path: bin/*.apk
+          path: ./*.apk
           retention-days: 30
