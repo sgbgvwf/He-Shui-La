@@ -2,32 +2,39 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, feat/mainWindow]
-  workflow_dispatch:  # 允许手动触发
+    branches: [main, feat/mainWindow, feat/platform]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🔧 Install Buildozer dependencies
+      - name: Install system deps
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip openjdk-17-jdk git zip unzip \
+          sudo apt update -qq
+          sudo apt install -y -qq python3-pip openjdk-17-jdk git zip unzip \
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
-            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          pip3 install buildozer
+            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            libltdl-dev
 
-      - name: 🔨 Build APK
-        run: |
-          cd /home/runner/work/He-Shui-La/He-Shui-La
-          buildozer android debug
+      - name: Install Buildozer
+        run: pip3 install buildozer
 
-      - name: 📤 Upload APK
+      - name: Build APK
+        run: buildozer android debug --verbose 2>&1
+        timeout-minutes: 45
+
+      - name: List output
+        if: always()
+        run: ls -la bin/ || echo "no bin/ directory"
+
+      - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: heshuila-debug-apk
-          path: /home/runner/work/He-Shui-La/He-Shui-La/bin/*.apk
+          path: bin/*.apk
           retention-days: 30
