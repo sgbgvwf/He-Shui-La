@@ -1,12 +1,23 @@
 """喝 水 啦 —— 儿童喝水养成游戏  Kivy App 入口"""
 
 import os
+import sys
+
 from kivy.config import Config
-# 禁用触摸模拟红点/右键菜单
-Config.set('input', 'mouse', 'mouse,disable_multitouch')
+
+# ── 移动端 / 桌面端 自适应配置 ──
+IS_MOBILE = hasattr(sys, "getandroidapilevel") or sys.platform in ("ios", "android")
+
+if not IS_MOBILE:
+    Config.set("input", "mouse", "mouse,disable_multitouch")
+
+Config.set("graphics", "resizable", True)
+if IS_MOBILE:
+    Config.set("graphics", "fullscreen", "auto")
 
 from kivy.app import App
 from kivy.core.text import LabelBase
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -15,21 +26,24 @@ from kivy.uix.popup import Popup
 from src.viewmodel.main_viewmodel import MainViewModel
 from src.view.sound_manager import SoundManager
 
-KV_PATH = "src/view/main_screen.kv"
-SETTINGS_KV_PATH = "src/view/settings_dialog.kv"
-ACHIEVEMENT_KV_PATH = "src/view/achievement_screen.kv"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+KV_PATH = os.path.join(_BASE_DIR, "main_screen.kv")
+SETTINGS_KV_PATH = os.path.join(_BASE_DIR, "settings_dialog.kv")
+ACHIEVEMENT_KV_PATH = os.path.join(_BASE_DIR, "achievement_screen.kv")
+_MODELS_DIR = os.path.join(_BASE_DIR, "resources", "models")
 
-_SOUNDS_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "resources", "sounds"
-)
+_SOUNDS_DIR = os.path.join(_BASE_DIR, "resources", "sounds")
 
 # ── 注册中文字体 ──
-_FONT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_FONT_HEI = os.path.join(_FONT_DIR, "SiYuanHeiTi-Regular", "SourceHanSansSC-Regular-2.otf")
-_FONT_SONG = os.path.join(_FONT_DIR, "思源宋体 (行高修正版)_2.003", "思源宋体.otf")
+_FONT_DIR = os.path.join(_BASE_DIR, "resources", "fonts")
+_FONT_HEI = os.path.join(_FONT_DIR, "SourceHanSansSC-Regular-2.otf")
+_FONT_SONG = os.path.join(_FONT_DIR, "SourceHanSerifSC-Regular.otf")
 
 LabelBase.register(name="ChineseHei", fn_regular=_FONT_HEI)
 LabelBase.register(name="ChineseSong", fn_regular=_FONT_SONG)
+
+if IS_MOBILE:
+    Window.softinput_mode = "below_target"
 
 
 class VerifyPopup(Popup):
@@ -109,6 +123,14 @@ class MainScreen(BoxLayout):
 
     def on_data_reset(self) -> None:
         self.vm.reload_config()
+        # 重置伙伴 widget 数据
+        if hasattr(self, 'ids') and 'companion_3d' in self.ids:
+            w = self.ids.companion_3d
+            w._current_idx = 0
+            for i in range(len(w._companions)):
+                w._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0, "models": w._companion_data[i].get("models", {}), "name": w._companion_data[i].get("name", "伙伴")}
+            w._mscale = 1.0
+            w._load_model(w._companions[0])
 
 
 class DrinkLaApp(App):
@@ -130,10 +152,15 @@ class DrinkLaApp(App):
 
         # 配置多伙伴模型列表
         root.ids.companion_3d.setup_companions([
-            "src/view/resources/models/companion.glb",
-            "src/view/resources/models/Tree_1.glb",
-            "src/view/resources/models/diamond.glb",
+            os.path.join(_MODELS_DIR, "companion.glb"),
+            os.path.join(_MODELS_DIR, "Tree_1.glb"),
+            os.path.join(_MODELS_DIR, "diamond.glb"),
         ])
+        # 树的进化模型: 等级1→Tree_1, 等级2→Tree_2
+        root.ids.companion_3d.set_companion_models(1, {
+            "1": os.path.join(_MODELS_DIR, "Tree_1.glb"),
+            "2": os.path.join(_MODELS_DIR, "Tree_2.glb"),
+        })
 
         return root
 
