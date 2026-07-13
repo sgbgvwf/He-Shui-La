@@ -24,6 +24,25 @@ jobs:
           pip3 install cython
           pip3 install python-for-android
 
+      - name: Patch android recipe (add Cython build dep)
+        run: |
+          RECIPE_DIR=$(python3 -c "import pythonforandroid.recipes.android; import os; print(os.path.dirname(os.path.abspath(pythonforandroid.recipes.android.__file__)))")
+          echo "Recipe dir: $RECIPE_DIR"
+          ls -la "$RECIPE_DIR/"
+          ls -la "$RECIPE_DIR/src/" 2>/dev/null || echo "no src dir"
+          # Try src dir first, fall back to recipe dir
+          for d in "$RECIPE_DIR/src" "$RECIPE_DIR"; do
+            if [ -f "$d/setup.py" ] || [ -f "$d/setup.cfg" ]; then
+              cat > "$d/pyproject.toml" << 'PYEOF'
+[build-system]
+requires = ["setuptools", "cython"]
+build-backend = "setuptools.build_meta"
+PYEOF
+              echo "Patched $d/pyproject.toml"
+              break
+            fi
+          done
+
       - name: p4a create (build recipes)
         env:
           PIP_NO_BUILD_ISOLATION: "1"
