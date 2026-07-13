@@ -9,8 +9,6 @@ from kivy.graphics.texture import Texture
 from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
 
-from .glb_loader import load_glb
-
 _MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "resources", "models")
 _DEFAULT_MODEL = os.path.join(_MODELS_DIR, "companion.glb")
 

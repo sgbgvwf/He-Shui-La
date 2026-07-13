@@ -1,2 +1,2 @@
 kivy>=2.2
-pygltflib>=1.2.6
+numpy
