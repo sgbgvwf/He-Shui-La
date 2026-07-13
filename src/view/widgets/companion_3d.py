@@ -6,7 +6,7 @@ import numpy as np
 from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse, Line, Rectangle
 from kivy.graphics.texture import Texture
-from kivy.properties import ObjectProperty, StringProperty
+from kivy.properties import NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.widget import Widget
 
 _MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "resources", "models")
@@ -153,6 +153,7 @@ class Companion3DWidget(Widget):
 
     viewmodel = ObjectProperty(None)
     current_name = StringProperty("伙伴")
+    current_level = NumericProperty(1)
     AUTO_ROTATE_SPEED = 0.6
     AUTO_RESUME_DELAY = 1.0
     DRAG_SENSITIVITY = 0.01
@@ -169,6 +170,8 @@ class Companion3DWidget(Widget):
         self._ambient = [0.08, 0.20, 0.35]
         self._face_materials = None
         self._slide_prev_mats = None
+        self._last_vm_level = 1
+        self._vm_level_init = False  # 首次忽略 delta
 
         # ── 伙伴列表 ──
         self._companions: list[str] = list(companions or [])
@@ -259,6 +262,7 @@ class Companion3DWidget(Widget):
         # 恢复新伙伴数据
         data = self._companion_data[self._current_idx]
         self._mscale = data.get("scale", 1.0)
+        self.current_level = data.get("level", 1)
         self._sync_current_name()
 
     # ═══════════════════════════════════════════════════════════════
@@ -597,13 +601,20 @@ class Companion3DWidget(Widget):
 
     def _on_evolution(self, vm, stage):
         data = self._companion_data[self._current_idx]
-        if "name" not in data:
-            data["name"] = f"伙伴{self._current_idx+1}"
+        # 增量法: 首次只记录基准线，不分配 delta
+        if not self._vm_level_init:
+            self._last_vm_level = vm.level
+            self._vm_level_init = True
+        else:
+            delta = vm.level - self._last_vm_level
+            if delta > 0:
+                data["level"] = data.get("level", 1) + delta
+            self._last_vm_level = vm.level
         data["stage"] = stage
-        data["level"] = vm.level
+        self.current_level = data["level"]
         self._mscale = {"形态A":1,"形态B":1.08,"形态C":1.15,"形态D":1.22,"形态E":1.3}.get(stage,1)
         # 等级驱动模型切换
         models = data.get("models", {})
-        lv = str(vm.level)
+        lv = str(data["level"])
         if lv in models:
             self._load_model(models[lv])

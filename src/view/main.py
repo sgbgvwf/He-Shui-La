@@ -123,13 +123,18 @@ class MainScreen(BoxLayout):
 
     def on_data_reset(self) -> None:
         self.vm.reload_config()
-        # 重置伙伴 widget 数据
         if hasattr(self, 'ids') and 'companion_3d' in self.ids:
             w = self.ids.companion_3d
             w._current_idx = 0
-            for i in range(len(w._companions)):
-                w._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0, "models": w._companion_data[i].get("models", {}), "name": w._companion_data[i].get("name", "伙伴")}
+            w._last_vm_level = 1
+            w._vm_level_init = False
             w._mscale = 1.0
+            for i in range(len(w._companions)):
+                models = w._companion_data[i].get("models", {})
+                name = w._companion_data[i].get("name", f"伙伴{i+1}")
+                w._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0, "models": models, "name": name}
+            w.current_level = 1
+            w._sync_current_name()
             w._load_model(w._companions[0])
 
 
@@ -165,12 +170,18 @@ class DrinkLaApp(App):
         return root
 
     def on_stop(self) -> None:
-        if self.vm is not None:
-            self.vm.save_state()
+        try:
+            if self.vm is not None:
+                self.vm.save_state()
+        except OSError:
+            pass
 
     def on_pause(self) -> None:
-        if self.vm is not None:
-            self.vm.save_state()
+        try:
+            if self.vm is not None:
+                self.vm.save_state()
+        except OSError:
+            pass
         return True
 
 

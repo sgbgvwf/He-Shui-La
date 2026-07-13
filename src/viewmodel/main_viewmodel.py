@@ -90,11 +90,9 @@ class MainViewModel(EventDispatcher):
             )
             self._sync_from_model()
             if bonus_result.get("leveled_up") or leveled_up:
-                stage = self.companion.evolution_stage
                 self._play_sound("levelup")
                 self._show_toast(
-                    f"每日目标达成！连击 {tracker_result['streak_days']} 天！"
-                    f" 升级到 {stage}！{ach_suffix}"
+                    f"每日目标达成！连击 {tracker_result['streak_days']} 天！升级了！{ach_suffix}"
                 )
             else:
                 self._show_toast(
@@ -102,8 +100,7 @@ class MainViewModel(EventDispatcher):
                 )
         elif leveled_up:
             self._play_sound("levelup")
-            stage = self.companion.evolution_stage
-            self._show_toast(f"升级了！进化到 {stage}！{ach_suffix}")
+            self._show_toast(f"升级了！{ach_suffix}")
         else:
             self._play_sound("drink")
             self._show_toast(f"咕噜咕噜～ 真好喝！{ach_suffix}")
