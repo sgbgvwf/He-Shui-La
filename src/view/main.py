@@ -1,12 +1,25 @@
 """喝 水 啦 —— 儿童喝水养成游戏  Kivy App 入口"""
 
 import os
+import sys
+
 from kivy.config import Config
-# 禁用触摸模拟红点/右键菜单
-Config.set('input', 'mouse', 'mouse,disable_multitouch')
+
+# ── 移动端 / 桌面端 自适应配置 ──
+IS_MOBILE = hasattr(sys, "getandroidapilevel") or sys.platform in ("ios", "android")
+
+# 鼠标右键菜单仅桌面端需要关闭
+if not IS_MOBILE:
+    Config.set("input", "mouse", "mouse,disable_multitouch")
+
+# 窗口自适应：移动端自动全屏，桌面端可缩放
+Config.set("graphics", "resizable", True)
+if IS_MOBILE:
+    Config.set("graphics", "fullscreen", "auto")
 
 from kivy.app import App
 from kivy.core.text import LabelBase
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -15,21 +28,27 @@ from kivy.uix.popup import Popup
 from src.viewmodel.main_viewmodel import MainViewModel
 from src.view.sound_manager import SoundManager
 
-KV_PATH = "src/view/main_screen.kv"
-SETTINGS_KV_PATH = "src/view/settings_dialog.kv"
-ACHIEVEMENT_KV_PATH = "src/view/achievement_screen.kv"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+KV_PATH = os.path.join(_BASE_DIR, "main_screen.kv")
+SETTINGS_KV_PATH = os.path.join(_BASE_DIR, "settings_dialog.kv")
+ACHIEVEMENT_KV_PATH = os.path.join(_BASE_DIR, "achievement_screen.kv")
+_MODELS_DIR = os.path.join(_BASE_DIR, "resources", "models")
 
 _SOUNDS_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "resources", "sounds"
 )
 
 # ── 注册中文字体 ──
-_FONT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_FONT_HEI = os.path.join(_FONT_DIR, "SiYuanHeiTi-Regular", "SourceHanSansSC-Regular-2.otf")
-_FONT_SONG = os.path.join(_FONT_DIR, "思源宋体 (行高修正版)_2.003", "思源宋体.otf")
+_FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "fonts")
+_FONT_HEI = os.path.join(_FONT_DIR, "SourceHanSansSC-Regular-2.otf")
+_FONT_SONG = os.path.join(_FONT_DIR, "SourceHanSerifSC-Regular.otf")
 
 LabelBase.register(name="ChineseHei", fn_regular=_FONT_HEI)
 LabelBase.register(name="ChineseSong", fn_regular=_FONT_SONG)
+
+# ── 移动端键盘适配 ──
+if IS_MOBILE:
+    Window.softinput_mode = "below_target"
 
 
 class VerifyPopup(Popup):
@@ -130,9 +149,9 @@ class DrinkLaApp(App):
 
         # 配置多伙伴模型列表
         root.ids.companion_3d.setup_companions([
-            "src/view/resources/models/companion.glb",
-            "src/view/resources/models/Tree_1.glb",
-            "src/view/resources/models/diamond.glb",
+            os.path.join(_MODELS_DIR, "companion.glb"),
+            os.path.join(_MODELS_DIR, "Tree_1.glb"),
+            os.path.join(_MODELS_DIR, "diamond.glb"),
         ])
 
         return root
