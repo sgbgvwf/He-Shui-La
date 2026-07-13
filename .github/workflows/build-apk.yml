@@ -20,7 +20,10 @@ jobs:
             cmake libffi-dev libssl-dev libltdl-dev
 
       - name: Install Buildozer
-        run: pip3 install buildozer
+        run: pip3 install buildozer==1.5.0
+
+      - name: Clean old build cache
+        run: rm -rf /home/runner/.buildozer /home/runner/work/He-Shui-La/He-Shui-La/.buildozer
 
       - name: Build APK
         run: buildozer android debug --verbose 2>&1
