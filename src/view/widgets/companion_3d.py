@@ -1,6 +1,6 @@
 """伙伴展示 Widget — NumPy 光栅化 + 多伙伴 + 水滴粒子."""
 
-import math, os, time, random
+import json, math, os, struct, time, random
 import numpy as np
 
 from kivy.clock import Clock
@@ -9,8 +9,10 @@ from kivy.graphics.texture import Texture
 from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
 
+from .glb_loader import load_glb
+
 _MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "resources", "models")
-_DEFAULT_MODEL = os.path.join(_MODELS_DIR, "companion.obj")
+_DEFAULT_MODEL = os.path.join(_MODELS_DIR, "companion.glb")
 
 _CUBE_VERTS = [
     (-0.5,-0.5,-0.5),(0.5,-0.5,-0.5),(0.5,0.5,-0.5),(-0.5,0.5,-0.5),
@@ -24,7 +26,18 @@ _CUBE_FACES: list[list[int]] = [
 def _resolve(idx, cnt):
     i = int(idx); return i-1 if i>0 else cnt+i
 
-def load_obj(path):
+def load_model(path: str):
+    """加载 3D 模型，返回 (顶点, 三角面, 材质色或None)。"""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == '.obj':
+        return (*_load_obj(path), None)
+    elif ext == '.glb':
+        return _load_glb(path)
+    else:
+        raise ValueError(f"Unsupported format: {ext}")
+
+
+def _load_obj(path):
     positions, faces = [], []
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -41,6 +54,100 @@ def load_obj(path):
                 for i in range(1, len(pts)-1):
                     faces.append([pts[0], pts[i], pts[i+1]])
     return positions, faces
+
+
+def _load_glb(path):
+    """解析 GLB (glTF Binary) 文件，返回 (顶点, 三角面)。"""
+    with open(path, "rb") as f:
+        data = f.read()
+
+    # ── Header ──
+    magic, version, total_len = struct.unpack_from("<I II", data, 0)
+    if magic != 0x46546C67:
+        raise ValueError("Not a valid GLB file")
+
+    # ── Chunks ──
+    offset = 12
+    json_data = None
+    bin_data = None
+    while offset < total_len:
+        chunk_len, chunk_type = struct.unpack_from("<I I", data, offset)
+        chunk_start = offset + 8
+        if chunk_type == 0x4E4F534A:  # JSON
+            json_data = json.loads(data[chunk_start:chunk_start + chunk_len])
+        elif chunk_type == 0x004E4942:  # BIN
+            bin_data = data[chunk_start:chunk_start + chunk_len]
+        offset = chunk_start + chunk_len
+
+    if json_data is None:
+        raise ValueError("GLB missing JSON chunk")
+
+    # ── Helpers ──
+    def get_accessor_data(acc_idx):
+        acc = json_data["accessors"][acc_idx]
+        bv = json_data["bufferViews"][acc["bufferView"]]
+        bo = acc.get("byteOffset", 0) + bv.get("byteOffset", 0)
+        ct = acc["componentType"]
+        at = acc["type"]
+        count = acc["count"]
+        comp_count = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[at]
+        fmt_map = {5120: "b", 5121: "B", 5122: "h", 5123: "H", 5125: "I", 5126: "f"}
+        fmt = fmt_map[ct]
+        total = count * comp_count
+        return struct.unpack_from(f"<{total}{fmt}", bin_data, bo), count, comp_count
+
+    positions = []
+    all_faces = []
+    face_materials = []  # 每面一个颜色或 None
+
+    # ── Materials ──
+    base_colours = []
+    if "materials" in json_data:
+        for mat in json_data["materials"]:
+            pbr = mat.get("pbrMetallicRoughness", {})
+            bc = pbr.get("baseColorFactor", [0.5, 0.5, 0.5, 1.0])
+            base_colours.append(tuple(bc[:3]))
+
+    def _mat_color(mat_idx):
+        if mat_idx is not None and mat_idx < len(base_colours):
+            r, g, b = base_colours[mat_idx]
+            # 线性 → sRGB gamma 校正
+            return (r ** (1/2.2), g ** (1/2.2), b ** (1/2.2))
+        return None
+
+    # ── Scene graph → meshes ──
+    def visit_node(node_idx):
+        node = json_data["nodes"][node_idx]
+        mesh_idx = node.get("mesh")
+        if mesh_idx is not None:
+            mesh = json_data["meshes"][mesh_idx]
+            for prim in mesh["primitives"]:
+                mat_color = _mat_color(prim.get("material"))
+                raw, cnt, _ = get_accessor_data(prim["attributes"]["POSITION"])
+                vert_start = len(positions)
+                for i in range(cnt):
+                    positions.append((raw[i*3], raw[i*3+1], raw[i*3+2]))
+                if "indices" in prim:
+                    raw, cnt, _ = get_accessor_data(prim["indices"])
+                    for i in range(0, cnt, 3):
+                        all_faces.append([vert_start+raw[i], vert_start+raw[i+1], vert_start+raw[i+2]])
+                        face_materials.append(mat_color)
+                else:
+                    for i in range(0, cnt, 3):
+                        all_faces.append([vert_start+i, vert_start+i+1, vert_start+i+2])
+                        face_materials.append(mat_color)
+        for child_idx in node.get("children", []):
+            visit_node(child_idx)
+
+    scene_idx = json_data.get("scene", 0)
+    scene = json_data["scenes"][scene_idx]
+    for root_node in scene.get("nodes", []):
+        visit_node(root_node)
+
+    if not positions:
+        raise ValueError("GLB has no mesh data")
+
+    return positions, all_faces, face_materials
 
 
 class Companion3DWidget(Widget):
@@ -61,6 +168,8 @@ class Companion3DWidget(Widget):
         self._mscale = 1.0
         self._diffuse = [0.25, 0.65, 1.00]
         self._ambient = [0.08, 0.20, 0.35]
+        self._face_materials = None
+        self._slide_prev_mats = None
 
         # ── 伙伴列表 ──
         self._companions: list[str] = list(companions or [])
@@ -78,7 +187,7 @@ class Companion3DWidget(Widget):
         if model_paths: self._model_paths.update(model_paths)
 
         # ── 模型缓存 ──
-        self._model_cache: dict[str, tuple] = {}
+        self._model_cache: dict[str, dict] = {}
         self._verts: list = _CUBE_VERTS
         self._faces: list[list[int]] = _CUBE_FACES
         self._load_model(self._companions[0])
@@ -87,6 +196,7 @@ class Companion3DWidget(Widget):
         self._slide_offset = 0.0         # 当前滑动偏移 (-1~1, 0=正常)
         self._slide_prev_verts = None    # 切换前的模型顶点(用于同时渲染)
         self._slide_prev_faces = None
+        self._slide_prev_material = None # 切换前的材质颜色
 
         # ── 水滴粒子 ──
         self._drops: list[dict] = []    # [{x, y, vy, life, size}]
@@ -140,6 +250,7 @@ class Companion3DWidget(Widget):
         # 保存旧模型用于过渡渲染
         self._slide_prev_verts = self._verts
         self._slide_prev_faces = self._faces
+        self._slide_prev_mats = self._face_materials
         self._slide_offset = float(direction)
 
         self._current_idx = (self._current_idx + direction) % len(self._companions)
@@ -152,19 +263,19 @@ class Companion3DWidget(Widget):
     # ═══════════════════════════════════════════════════════════════
     # 水滴粒子
     # ═══════════════════════════════════════════════════════════════
-    def trigger_drops(self, count: int = 15):
-        """触发水滴粒子动画。传入生成数量。"""
+    def trigger_drops(self, count: int = 20):
+        """触发水滴粒子动画。"""
         w, h = self.width, self.height
-        cx, cy = self.pos[0] + w/2, self.pos[1] + h/2
+        cx, cy = self.pos[0] + w/2, self.pos[1] + h*0.95
         for _ in range(count):
-            angle = random.uniform(-0.7, 0.7)  # 上方扇形
-            dist = random.uniform(w*0.05, w*0.18)
+            angle = random.uniform(-0.9, 0.9)
+            dist = random.uniform(w*0.03, w*0.22)
             self._drops.append({
                 "x": cx + math.sin(angle) * dist,
-                "y": cy + w*0.25 + random.uniform(0, w*0.10),
-                "vy": random.uniform(-80, -30),   # 初始向上
-                "life": random.uniform(0.8, 1.2),
-                "size": random.uniform(3, 6),
+                "y": cy + random.uniform(0, h*0.08),
+                "vy": random.uniform(-50, -20),
+                "life": random.uniform(1.8, 3.0),
+                "size": random.uniform(5, 9),
             })
 
     # ═══════════════════════════════════════════════════════════════
@@ -179,10 +290,14 @@ class Companion3DWidget(Widget):
         y, z = y*cx-z*sx, y*sx+z*cx
         return x, y, z
 
-    def _render_model(self, verts, faces, sc, cx, cy, ay, ax, zbuf, pxbuf, ox, oy):
-        """渲染一个模型到像素缓冲."""
+    def _render_model(self, verts, faces, sc, cx, cy, ay, ax, zbuf, pxbuf, ox, oy,
+                      face_mats=None):
+        """渲染模型。face_mats: 每面颜色或None(用水分色)。"""
+        mats = face_mats or ([None] * len(faces))
         Lx, Ly, Lz = 0.0, 0.0, 1.0
-        for face in faces:
+        for fi, face in enumerate(faces):
+            mat = mats[fi] if fi < len(mats) else None
+            eff = list(mat) if mat else self._diffuse
             r0 = self._rotate(verts[face[0]], ay, ax)
             r1 = self._rotate(verts[face[1]], ay, ax)
             r2 = self._rotate(verts[face[2]], ay, ax)
@@ -195,7 +310,7 @@ class Companion3DWidget(Widget):
             for (rx,ry,rz) in (r0,r1,r2):
                 s = 2.5 / max(rz+8.0, 0.1)
                 p2d.append((rx*s*sc+cx, ry*s*sc+cy, (rz+8.0)/16.0))
-            color = np.array([self._diffuse[0]*bright, self._diffuse[1]*bright, self._diffuse[2]*bright, 1.0], dtype=np.float32)
+            color = np.array([eff[0]*bright, eff[1]*bright, eff[2]*bright, 1.0], dtype=np.float32)
             self._rasterize(p2d, color, zbuf, pxbuf, ox, oy)
 
     # ═══════════════════════════════════════════════════════════════
@@ -253,6 +368,7 @@ class Companion3DWidget(Widget):
                 self._slide_offset = 0.0
                 self._slide_prev_verts = None
                 self._slide_prev_faces = None
+                self._slide_prev_material = None
 
         ay = self._auto_ay + self._drag_ay
         ax = self._auto_ax + self._drag_ax
@@ -271,14 +387,13 @@ class Companion3DWidget(Widget):
         if abs(slide) > 0.001 and self._slide_prev_verts is not None:
             # 旧模型滑出
             shift_x = slide * w * 0.8
-            self._render_model(self._slide_prev_verts, self._slide_prev_faces, sc, cx+shift_x, cy, ay, ax, zbuf, pxbuf, ox, oy)
-            # 新模型滑入
+            self._render_model(self._slide_prev_verts, self._slide_prev_faces, sc, cx+shift_x, cy, ay, ax, zbuf, pxbuf, ox, oy, self._slide_prev_mats)
             shift_x2 = (slide - (1 if slide>0 else -1)) * w * 0.8 * (-1)
             if slide > 0: shift_x2 = (slide-1)*w*0.8
             else: shift_x2 = (slide+1)*w*0.8
-            self._render_model(self._verts, self._faces, sc, cx+shift_x2, cy, ay, ax, zbuf, pxbuf, ox, oy)
+            self._render_model(self._verts, self._faces, sc, cx+shift_x2, cy, ay, ax, zbuf, pxbuf, ox, oy, self._face_materials)
         else:
-            self._render_model(self._verts, self._faces, sc, cx, cy, ay, ax, zbuf, pxbuf, ox, oy)
+            self._render_model(self._verts, self._faces, sc, cx, cy, ay, ax, zbuf, pxbuf, ox, oy, self._face_materials)
 
         # ── 水滴粒子 ──
         for drop in self._drops:
@@ -292,7 +407,7 @@ class Companion3DWidget(Widget):
             dx = int(drop["x"]-ox); dy = int(drop["y"]-oy)
             sz = int(drop["size"])
             alpha = min(1.0, drop["life"]/0.3)
-            drop_color = np.array([0.25, 0.70, 1.0, alpha])
+            drop_color = np.array([0.30, 0.75, 1.0, alpha])
             x0 = max(0, dx-sz); x1 = min(w-1, dx+sz)
             y0 = max(0, dy-sz); y1 = min(h-1, dy+sz)
             if x0>x1 or y0>y1: continue
@@ -343,7 +458,8 @@ class Companion3DWidget(Widget):
             rx2 = rx + r*0.2
             self._ra_icon.points = [rx2+r*0.3, ly+r*1.3, rx2+r*0.9, ly+r, rx2+r*0.3, ly+r*0.7]
         else:
-            self._la_circle.size = (0, 0); self._ra_circle.size = (0, 0)
+            self._la_circle.pos = (-100, -100); self._la_circle.size = (0, 0)
+            self._ra_circle.pos = (-100, -100); self._ra_circle.size = (0, 0)
 
     # ═══════════════════════════════════════════════════════════════
     # 触控
@@ -377,9 +493,13 @@ class Companion3DWidget(Widget):
     def _update_arrow_visibility(self):
         """根据 _arrows_visible 显隐左右箭头."""
         if self._arrows_visible:
-            self._on_geo()  # 重新计算箭头位置
+            self._on_geo()
         else:
-            self._la_circle.size = (0, 0); self._ra_circle.size = (0, 0)
+            # 移出屏幕确保彻底隐藏
+            self._la_circle.pos = (-100, -100)
+            self._la_circle.size = (0, 0)
+            self._ra_circle.pos = (-100, -100)
+            self._ra_circle.size = (0, 0)
 
     def on_touch_move(self, touch):
         if touch.grab_current is self:
@@ -400,12 +520,20 @@ class Companion3DWidget(Widget):
     # ═══════════════════════════════════════════════════════════════
     def _load_model(self, path):
         if path in self._model_cache:
-            self._verts, self._faces = self._model_cache[path]; return
+            e = self._model_cache[path]
+            self._verts = e["verts"]; self._faces = e["faces"]
+            self._face_materials = e.get("mats")
+            return
         if os.path.exists(path):
             try:
-                v, f = load_obj(path); self._model_cache[path]=(v,f); self._verts,self._faces=v,f
-            except Exception as e: print(f"load fail: {path} ({e})")
-        else: print(f"not found: {path}")
+                v, f, mats = load_model(path)
+                self._model_cache[path] = {"verts": v, "faces": f, "mats": mats}
+                self._verts = v; self._faces = f
+                self._face_materials = mats
+            except Exception as e:
+                print(f"load fail: {path} ({e})")
+        else:
+            print(f"not found: {path}")
 
     def set_model(self, path): self._load_model(path)
     def set_models(self, paths): self._model_paths.update(paths)

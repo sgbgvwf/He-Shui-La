@@ -56,7 +56,7 @@ def _default_user_config() -> dict:
     return {
         "version": SCHEMA_VERSION,
         # ── DailyTracker ──
-        "target_cups": 8,
+        "daily_target": 8,
         "target_reward_exp": 20,
         "streak_bonus_table": [[3, 0.10], [7, 0.20], [15, 0.30], [30, 0.50]],
         # ── AntiCheat ──
