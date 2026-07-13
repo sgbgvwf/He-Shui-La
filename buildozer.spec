@@ -8,7 +8,7 @@ source.dir = .
 source.include_exts = py,kv,glsl,glb,obj,otf,ttf,wav,mp3,ogg,png,jpg,atlas,json,txt
 
 # ── 依赖 ──
-requirements = python3,kivy,numpy==1.26.4,pygltflib
+requirements = python3,kivy,numpy,pygltflib
 
 # ── 入口 ──
 # 项目根目录 main.py → src/view/main.py → DrinkLaApp
@@ -32,7 +32,7 @@ android.permissions = INTERNET,VIBRATE
 android.archs = arm64-v8a
 android.api = 33
 android.minapi = 26
-android.ndk = 25b
+android.ndk = 27
 
 # ── 签名 (debug 测试用) ──
 android.allow_backup = True
