@@ -47,6 +47,9 @@ osx.kivy_version = 2.3.0
 # ── 清理 ──
 android.clean_on_build = False
 
+# ── p4a 分支 ──
+p4a.branch = develop
+
 [buildozer]
 log_level = 2
 warn_on_root = 1
