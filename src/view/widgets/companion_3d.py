@@ -6,7 +6,7 @@ import numpy as np
 from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse, Line, Rectangle
 from kivy.graphics.texture import Texture
-from kivy.properties import ObjectProperty
+from kivy.properties import ObjectProperty, StringProperty
 from kivy.uix.widget import Widget
 
 _MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "resources", "models")
@@ -152,6 +152,7 @@ class Companion3DWidget(Widget):
     """NumPy z-buffer 3D + 多伙伴切换 + 水滴粒子."""
 
     viewmodel = ObjectProperty(None)
+    current_name = StringProperty("伙伴")
     AUTO_ROTATE_SPEED = 0.6
     AUTO_RESUME_DELAY = 1.0
     DRAG_SENSITIVITY = 0.01
@@ -178,7 +179,7 @@ class Companion3DWidget(Widget):
         # ── 每伙伴独立数据: {idx: {level, stage, scale}}  喝水值全局共享 ──
         self._companion_data: dict[int, dict] = {}
         for i in range(len(self._companions)):
-            self._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0}
+            self._companion_data[i] = {"level":1,"stage":"形态A","scale":1.0,"models":{},"name":f"伙伴{i+1}"}
 
         # ── 模型注册表 (阶段→路径) ──
         self._model_paths: dict[str, str] = {}
@@ -189,6 +190,7 @@ class Companion3DWidget(Widget):
         self._verts: list = _CUBE_VERTS
         self._faces: list[list[int]] = _CUBE_FACES
         self._load_model(self._companions[0])
+        self._sync_current_name()
 
         # ── 滑动动画 ──
         self._slide_offset = 0.0         # 当前滑动偏移 (-1~1, 0=正常)
@@ -257,6 +259,7 @@ class Companion3DWidget(Widget):
         # 恢复新伙伴数据
         data = self._companion_data[self._current_idx]
         self._mscale = data.get("scale", 1.0)
+        self._sync_current_name()
 
     # ═══════════════════════════════════════════════════════════════
     # 水滴粒子
@@ -517,6 +520,13 @@ class Companion3DWidget(Widget):
     # 模型加载
     # ═══════════════════════════════════════════════════════════════
     def _load_model(self, path):
+        # 等级驱动: 优先用当前伙伴的等级映射
+        if 0 <= self._current_idx < len(self._companions):
+            data = self._companion_data[self._current_idx]
+            lv = str(data.get("level", 1))
+            models = data.get("models", {})
+            path = models.get(lv, path)
+
         if path in self._model_cache:
             e = self._model_cache[path]
             self._verts = e["verts"]; self._faces = e["faces"]
@@ -536,14 +546,20 @@ class Companion3DWidget(Widget):
     def set_model(self, path): self._load_model(path)
     def set_models(self, paths): self._model_paths.update(paths)
 
-    def setup_companions(self, paths: list[str]):
-        """运行时配置多伙伴列表。清除旧伙伴，重新加载。"""
+    def set_companion_models(self, idx: int, models: dict[str, str]):
+        if idx < len(self._companions):
+            self._companion_data[idx]["models"] = dict(models)
+
+    def setup_companions(self, paths: list[str], names: list[str] | None = None):
+        """配置多伙伴。names 为自定义名称列表，缺省用文件名。"""
         self._companions = list(paths)
         self._current_idx = 0
         self._companion_data = {}
-        for i in range(len(self._companions)):
-            self._companion_data[i] = {"level": 1, "stage": "形态A", "scale": 1.0}
+        for i, p in enumerate(self._companions):
+            name = names[i] if names and i < len(names) else f"伙伴{i+1}"
+            self._companion_data[i] = {"level":1,"stage":"形态A","scale":1.0,"models":{},"name":name}
         self._load_model(self._companions[0])
+        self._sync_current_name()
         if hasattr(self, '_arr_l_circle') and len(self._companions) <= 1:
             self._arr_l_circle.size = (0, 0); self._arr_r_circle.size = (0, 0)
         self._on_geo()
@@ -552,6 +568,12 @@ class Companion3DWidget(Widget):
     def current_companion_index(self): return self._current_idx
     @property
     def companion_count(self): return len(self._companions)
+    @property
+    def current_stage(self):
+        return self._companion_data[self._current_idx].get("stage","形态A")
+
+    def _sync_current_name(self):
+        self.current_name = self._companion_data[self._current_idx].get("name","伙伴")
 
     # ═══════════════════════════════════════════════════════════════
     # ViewModel
@@ -574,6 +596,14 @@ class Companion3DWidget(Widget):
         self._diffuse = [r,g,b]; self._ambient = [r*0.3, g*0.3, b*0.35]
 
     def _on_evolution(self, vm, stage):
+        data = self._companion_data[self._current_idx]
+        if "name" not in data:
+            data["name"] = f"伙伴{self._current_idx+1}"
+        data["stage"] = stage
+        data["level"] = vm.level
         self._mscale = {"形态A":1,"形态B":1.08,"形态C":1.15,"形态D":1.22,"形态E":1.3}.get(stage,1)
-        if stage in self._model_paths:
-            self._load_model(self._model_paths[stage])
+        # 等级驱动模型切换
+        models = data.get("models", {})
+        lv = str(vm.level)
+        if lv in models:
+            self._load_model(models[lv])
