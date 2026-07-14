@@ -155,13 +155,19 @@ class DrinkLaApp(App):
 
         root = MainScreen(viewmodel=self.vm)
 
-        # 配置多伙伴模型列表 (文件名, 自定义名称)
+        # 配置多伙伴模型列表
         root.ids.companion_3d.setup_companions([
-            os.path.join(_MODELS_DIR, "companion.glb"),
+            os.path.join(_MODELS_DIR, "WaterSprite_1.glb"),
             os.path.join(_MODELS_DIR, "Tree_1.glb"),
             os.path.join(_MODELS_DIR, "diamond.glb"),
-        ], names=["方块", "小树", "钻石"])
-        # 树的进化模型: 等级1→Tree_1, 等级2→Tree_2
+        ], names=["小水滴", "小树", "钻石"])
+        # 水滴进化: 等级1→1, 等级2→2, 等级3→3
+        root.ids.companion_3d.set_companion_models(0, {
+            "1": os.path.join(_MODELS_DIR, "WaterSprite_1.glb"),
+            "2": os.path.join(_MODELS_DIR, "WaterSprite_2.glb"),
+            "3": os.path.join(_MODELS_DIR, "WaterSprite_3.glb"),
+        })
+        # 树的进化: 等级1→1, 等级2→2
         root.ids.companion_3d.set_companion_models(1, {
             "1": os.path.join(_MODELS_DIR, "Tree_1.glb"),
             "2": os.path.join(_MODELS_DIR, "Tree_2.glb"),
